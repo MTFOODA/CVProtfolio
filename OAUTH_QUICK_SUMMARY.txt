@@ -1,0 +1,8 @@
+OAUTH QUICK SUMMARY (Google → Supabase → Flutter)
+1. Config file to fill in: d:\MTFOODA\Code\Flutter apps\CV\dart_defines.json (copy from dart_defines.example.json; keys: SUPABASE_URL, SUPABASE_ANON_KEY, GOOGLE_WEB_CLIENT_ID, GOOGLE_IOS_CLIENT_ID="", SHARE_BASE_URL).
+2. From Google Cloud Console (console.cloud.google.com → APIs & Services → Credentials): (a) Web OAuth client ID (...apps.googleusercontent.com) — create "Web application" client; (b) that same client's Client Secret — goes ONLY to Supabase, never into Flutter/git; (c) Android OAuth client — package com.mtfooda.cv_portfolio_maker + SHA-1 from android/gradlew.bat signingReport (not pasted anywhere in code).
+3. From Supabase Dashboard → Project Settings → API: Project URL → SUPABASE_URL (https://<project-ref>.supabase.co); API keys → publishable/anon key → SUPABASE_ANON_KEY.
+4. Also Supabase Dashboard → Authentication → Providers → Google: enable, paste Web Client ID + Client Secret; Authentication → URL Configuration: Site URL/Redirect URLs = http://localhost:8080 (and http://localhost:8080/**).
+5. Flutter file (dart_defines.json) gets: SUPABASE_URL, SUPABASE_ANON_KEY, GOOGLE_WEB_CLIENT_ID (+ empty GOOGLE_IOS_CLIENT_ID, SHARE_BASE_URL). Supabase Dashboard gets: Google Client ID, Google Client Secret, Site URL/Redirect URLs.
+6. Exact redirect URL — add to the Google Web client's "Authorised redirect URIs": https://<project-ref>.supabase.co/auth/v1/callback (shown in Supabase → Auth → Providers → Google).
+7. Final run command: flutter run --dart-define-from-file=dart_defines.json  (web: flutter run -d chrome --web-port=8080 --dart-define-from-file=dart_defines.json)
