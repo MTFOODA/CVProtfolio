@@ -655,7 +655,7 @@ void main() {
         router.routeInformationProvider.value.uri.queryParameters['section'],
         'portfolio',
       );
-      expect(find.byType(ExpansionTile), findsWidgets);
+      expect(find.byType(ExpansionTile), findsNothing);
       expect(find.text('Color Theme'), findsOneWidget);
       router.go('/settings');
       await settle(tester);

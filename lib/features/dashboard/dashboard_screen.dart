@@ -28,13 +28,8 @@ import 'package:cv_portfolio_maker/features/settings/settings_screen.dart';
 /// A fixed bottom navigation switches between Home, Build CV, Portfolio and
 /// Settings while each tab keeps its own state.
 class DashboardScreen extends ConsumerStatefulWidget {
-  const DashboardScreen({
-    super.key,
-    this.settingsRoute = false,
-    this.portfolioExpanded = false,
-  });
+  const DashboardScreen({super.key, this.settingsRoute = false});
   final bool settingsRoute;
-  final bool portfolioExpanded;
 
   @override
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
@@ -53,7 +48,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             const _DashboardHome(),
             CvBuilderWizardScreen(active: tab == 1),
             const SizedBox.shrink(),
-            SettingsScreen(portfolioExpanded: widget.portfolioExpanded),
+            tab == 3 ? const SettingsScreen() : const SizedBox.shrink(),
           ],
         ),
       ),

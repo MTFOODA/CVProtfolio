@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import '../theme/app_tokens.dart';
+import '../theme/surface_gradients.dart';
 import 'app_motion.dart';
 
 /// Shared geometric canvas. Decorative layers never receive input or semantics.
@@ -101,15 +102,22 @@ class AppGlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final content = Padding(padding: padding, child: child);
+    final gradient = Theme.of(context).extension<SurfaceGradients>()?.card;
+    final surface = gradient == null
+        ? content
+        : DecoratedBox(
+            decoration: BoxDecoration(gradient: gradient),
+            child: content,
+          );
     return Card(
       margin: margin,
       clipBehavior: Clip.antiAlias,
       child: blur && !AppMotion.reduced(context)
           ? BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: content,
+              child: surface,
             )
-          : content,
+          : surface,
     );
   }
 }
@@ -155,7 +163,9 @@ class _AppHeroSurfaceState extends State<AppHeroSurface> {
     borderRadius: BorderRadius.circular(AppRadii.xl),
     child: DecoratedBox(
       decoration: BoxDecoration(
-        gradient: AppGradients.hero(Theme.of(context).brightness),
+        gradient:
+            Theme.of(context).extension<SurfaceGradients>()?.hero ??
+            AppGradients.hero(Theme.of(context).brightness),
       ),
       child: Stack(
         children: [

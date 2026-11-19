@@ -379,6 +379,7 @@ const Map<String, String> arStrings = {
   'themeOcean': 'المحيط',
   'themeForest': 'الغابة',
   'themeRose': 'الوردة',
+  'themeSky': 'الأزرق السماوي',
   'themeCustom': 'سمة مخصصة',
   'heroSection': 'القسم الرئيسي',
   'contactMe': 'تواصل معي',

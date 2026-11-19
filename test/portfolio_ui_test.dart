@@ -224,7 +224,11 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> mount(WidgetTester tester, {int tab = 0}) async {
+  Future<void> mount(
+    WidgetTester tester, {
+    int tab = 0,
+    bool dark = false,
+  }) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -242,7 +246,7 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp.router(
-          theme: AppTheme.light(),
+          theme: dark ? AppTheme.dark() : AppTheme.light(),
           routerConfig: router,
           builder: (context, child) => RepaintBoundary(
             key: screenshotKey,
@@ -336,7 +340,7 @@ void main() {
   );
 
   testWidgets(
-    'CV picker selects independent content and palette colors only the canvas',
+    'CV picker selects independent content and palettes preserve foreground colors',
     (tester) async {
       await tester.runAsync(() async {
         for (final id in ['mobile', 'backend']) {
@@ -425,6 +429,56 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final dark in [false, true]) {
+    testWidgets(
+      'portfolio surfaces and fixed settings fit all palettes, dark=$dark',
+      (tester) async {
+        await mount(tester, dark: dark);
+        tester.view.physicalSize = const Size(1440, 1000);
+        await settle(tester);
+        for (final palette in portfolioThemes) {
+          await tester.runAsync(() async {
+            final saved = container.read(portfolioProvider).value!;
+            await container
+                .read(portfolioProvider.notifier)
+                .save(
+                  saved.copyWith(
+                    design: saved.design.copyWith(templateId: palette.id),
+                  ),
+                );
+          });
+          await settle(tester);
+          expect(find.text('Edit profile'), findsNothing);
+          expect(find.text('Download CV'), findsNothing);
+          await screenshot(
+            tester,
+            'surface-${palette.id}-${dark ? 'dark' : 'light'}',
+          );
+          await tab(tester, 'Projects');
+          await screenshot(
+            tester,
+            'cards-${palette.id}-${dark ? 'dark' : 'light'}',
+          );
+          await tab(tester, 'About');
+        }
+        await tab(tester, 'Settings');
+        expect(find.byType(ExpansionTile), findsNothing);
+        expect(find.text('Sky blue'), findsOneWidget);
+        await screenshot(
+          tester,
+          'fixed-settings-${dark ? 'dark' : 'light'}-desktop',
+        );
+        tester.view.physicalSize = const Size(320, 740);
+        await settle(tester);
+        await screenshot(
+          tester,
+          'fixed-settings-${dark ? 'dark' : 'light'}-phone',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'theme and visibility save and survive reopening without deleting profile data',
@@ -751,7 +805,7 @@ void main() {
   );
 
   testWidgets(
-    'empty projects and skills stay out of navigation while editing remains available',
+    'empty portfolio omits unavailable tabs and the removed footer actions',
     (tester) async {
       await tester.runAsync(
         () => local.saveProfile(
@@ -764,7 +818,7 @@ void main() {
       await mount(tester);
       expect(find.byType(NavigationBar), findsNothing);
       expect(find.text('View Work'), findsNothing);
-      expect(find.text('Edit profile'), findsOneWidget);
+      expect(find.text('Edit profile'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

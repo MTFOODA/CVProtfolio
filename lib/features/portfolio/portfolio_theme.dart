@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../../core/design/portfolio_themes.dart';
+import '../../core/theme/surface_gradients.dart';
 
-/// Palette selection changes the page canvas only. Content, controls and cards
-/// keep the application's accessible foreground and surface colors.
-ThemeData portfolioUiTheme(ThemeData base, PortfolioTheme palette) => base;
+/// Only surface decoration changes; text and controls keep their foregrounds.
+ThemeData portfolioUiTheme(ThemeData base, PortfolioTheme palette) =>
+    base.copyWith(
+      extensions: [
+        ...base.extensions.values.where(
+          (extension) => extension is! SurfaceGradients,
+        ),
+        SurfaceGradients(
+          card: palette.surfaceGradient(base.brightness),
+          hero: palette.surfaceGradient(base.brightness),
+        ),
+      ],
+    );
 
 class PortfolioBackdrop extends StatelessWidget {
   const PortfolioBackdrop({
@@ -16,19 +27,10 @@ class PortfolioBackdrop extends StatelessWidget {
   final Widget child;
   @override
   Widget build(BuildContext context) {
-    final base = Theme.of(context).colorScheme.surface;
-    final dark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       key: ValueKey('portfolio-background:${palette.id}'),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.lerp(base, palette.heroStart, dark ? .55 : .14)!,
-            Color.lerp(base, palette.heroEnd, dark ? .40 : .10)!,
-          ],
-        ),
+        gradient: palette.canvasGradient(Theme.of(context).brightness),
       ),
       child: SizedBox.expand(child: child),
     );

@@ -382,6 +382,7 @@ const Map<String, String> enStrings = {
   'themeOcean': 'Ocean',
   'themeForest': 'Forest',
   'themeRose': 'Rose',
+  'themeSky': 'Sky blue',
   'themeCustom': 'Custom theme',
   'heroSection': 'Hero section',
   'contactMe': 'Contact me',

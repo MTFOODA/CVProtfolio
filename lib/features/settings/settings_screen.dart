@@ -15,8 +15,7 @@ import 'package:cv_portfolio_maker/core/widgets/app_motion.dart';
 
 /// Application preferences: theme, locale and account actions.
 class SettingsScreen extends ConsumerWidget {
-  const SettingsScreen({super.key, this.portfolioExpanded = false});
-  final bool portfolioExpanded;
+  const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,15 +37,24 @@ class SettingsScreen extends ConsumerWidget {
         child: ListView(
           padding: AppSpacing.pagePadding(context),
           children: [
-            Card(
-              child: ExpansionTile(
-                key: ValueKey('portfolio-settings:$portfolioExpanded'),
-                initiallyExpanded: portfolioExpanded,
-                title: Text(context.tr('portfolioSettingsTitle')),
-                leading: const Icon(AppIcons.customize),
-                childrenPadding: const EdgeInsets.all(AppSpacing.md),
-                children: const [
-                  PortfolioBuilderScreen(
+            _SectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(AppIcons.customize),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Text(
+                          context.tr('portfolioSettingsTitle'),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  const PortfolioBuilderScreen(
                     settingsOnly: true,
                     embeddedSettings: true,
                   ),

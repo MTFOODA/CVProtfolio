@@ -118,8 +118,6 @@ GoRouter buildRouter({
               (owner) => DashboardScreen(
                 key: ValueKey('settings:$owner'),
                 settingsRoute: true,
-                portfolioExpanded:
-                    state.uri.queryParameters['section'] == 'portfolio',
               ),
             ),
             routes: [

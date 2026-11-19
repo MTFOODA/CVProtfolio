@@ -591,12 +591,27 @@ void main() {
         ),
       );
       await _settle(tester);
-      await tester.ensureVisible(find.text('Dark'));
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      final settingsScroll = find
+          .descendant(
+            of: find.byType(SettingsScreen),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        find.text('Dark'),
+        350,
+        scrollable: settingsScroll,
+      );
       await _settle(tester);
       await tester.tap(find.text('Dark'));
       await _settle(tester);
       expect(find.byType(SettingsScreen), findsOneWidget);
-      await tester.ensureVisible(find.text('العربية'));
+      await tester.scrollUntilVisible(
+        find.text('العربية'),
+        250,
+        scrollable: settingsScroll,
+      );
       await _settle(tester);
       await tester.tap(find.text('العربية'));
       await _settle(tester);

@@ -55,6 +55,17 @@ editor retry and existing owner flows. The full presentation audit now exercises
 all five pages in both owner and visitor views across its responsive/locale/theme
 matrix; Experience and Credentials captures are retained with the other audit images.
 
+## Portfolio appearance
+
+Portfolio settings are always visible as a normal section of global Settings.
+The owner and visitor About pages omit the Edit profile and Download CV footer.
+The CV builder continues to provide editing and export.
+
+Ocean, Forest, Rose and Sky blue apply to the page background, profile hero and
+content cards. The colored palettes reuse the graphite gradient stops and match
+their luminance in light and dark modes. Foreground colors remain unchanged.
+Palette previews wrap into two columns on phones and four on wider screens.
+
 ## Executed verification
 
 - Full suite: **358 tests passed**, 05:02, in

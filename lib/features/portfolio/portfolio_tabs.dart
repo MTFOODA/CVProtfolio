@@ -218,25 +218,6 @@ class PortfolioAboutTab extends StatelessWidget {
             ownerId: profile.id,
             onOpen: onOpen,
           ),
-        const SizedBox(height: 8),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 8,
-          children: [
-            if (editable)
-              TextButton.icon(
-                onPressed: onEdit,
-                icon: const Icon(AppIcons.edit, size: 18),
-                label: const UiText('Edit profile'),
-              ),
-            if (showDownload)
-              TextButton.icon(
-                onPressed: onDownload,
-                icon: const Icon(AppIcons.download, size: 18),
-                label: const UiText('Download CV'),
-              ),
-          ],
-        ),
       ],
     );
   }

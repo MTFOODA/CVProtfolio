@@ -65,81 +65,91 @@ class PortfolioSettingsTab extends StatelessWidget {
       embedded: embedded,
       children: [
         const _Label('Color Theme'),
-        Row(
-          children: [
-            for (final theme in portfolioThemes)
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: theme == portfolioThemes.last ? 0 : 10,
-                  ),
-                  child: Semantics(
-                    selected: theme.id == document.design.templateId,
-                    button: true,
-                    label: context.tr(theme.labelKey),
-                    child: InkWell(
-                      onTap: busy
-                          ? null
-                          : () => onSave(
-                              document.copyWith(
-                                design: document.design.copyWith(
-                                  templateId: theme.id,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth < 480 ? 2 : 4;
+            final width = (constraints.maxWidth - 10 * (columns - 1)) / columns;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final theme in portfolioThemes)
+                  SizedBox(
+                    width: width,
+                    child: Semantics(
+                      selected: theme.id == document.design.templateId,
+                      button: true,
+                      label: context.tr(theme.labelKey),
+                      child: InkWell(
+                        onTap: busy
+                            ? null
+                            : () => onSave(
+                                document.copyWith(
+                                  design: document.design.copyWith(
+                                    templateId: theme.id,
+                                  ),
                                 ),
                               ),
+                        borderRadius: BorderRadius.circular(12),
+                        child: AnimatedContainer(
+                          duration: AppMotion.reduced(context)
+                              ? Duration.zero
+                              : AppMotion.quick,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.id == document.design.templateId
+                                  ? accent
+                                  : Theme.of(context)
+                                        .colorScheme
+                                        .outlineVariant,
+                              width: theme.id == document.design.templateId
+                                  ? 2
+                                  : 1,
                             ),
-                      borderRadius: BorderRadius.circular(12),
-                      child: AnimatedContainer(
-                        duration: AppMotion.reduced(context)
-                            ? Duration.zero
-                            : AppMotion.quick,
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: theme.id == document.design.templateId
-                                ? accent
-                                : Theme.of(context).colorScheme.outlineVariant,
-                            width: theme.id == document.design.templateId
-                                ? 2
-                                : 1,
                           ),
-                        ),
-                        child: Column(
-                          children: [
-                            Container(
-                              height: 48,
-                              decoration: BoxDecoration(
-                                gradient: theme.heroGradient,
+                          child: Column(
+                            children: [
+                              Container(
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  gradient: theme.surfaceGradient(
+                                    Theme.of(context).brightness,
+                                  ),
+                                ),
+                                child: theme.id == document.design.templateId
+                                    ? const Center(
+                                        child: Icon(
+                                          AppIcons.checkCircle,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      )
+                                    : null,
                               ),
-                              child: theme.id == document.design.templateId
-                                  ? const Center(
-                                      child: Icon(
-                                        AppIcons.checkCircle,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 9),
-                              child: Text(
-                                context.tr(theme.labelKey),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 9,
+                                ),
+                                child: Text(
+                                  context.tr(theme.labelKey),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
-          ],
+              ],
+            );
+          },
         ),
         const SizedBox(height: 28),
         const _Label('Section Visibility'),
