@@ -7,9 +7,52 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/widgets/app_motion.dart';
 import '../../core/widgets/app_surfaces.dart';
+import '../../core/domain/profile_models.dart';
 
 const portfolioInk = Color(0xFF111B30);
 const portfolioMuted = Color(0xFF748094);
+
+/// A single responsibility or achievement, distinct from adjacent points.
+class PortfolioDescriptionBox extends StatelessWidget {
+  const PortfolioDescriptionBox({super.key, required this.item});
+  final DescriptionItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: dark ? .06 : .50),
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(
+          color: dark
+              ? Colors.white.withValues(alpha: .16)
+              : theme.colorScheme.outlineVariant,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (item.label.trim().isNotEmpty) ...[
+            Text(
+              item.label.trim(),
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: AppTypography.semibold,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          Text(item.text, style: const TextStyle(fontSize: 14, height: 1.65)),
+        ],
+      ),
+    );
+  }
+}
 
 class PortfolioCard extends StatelessWidget {
   const PortfolioCard({

@@ -317,7 +317,10 @@ class _AdditionalSection extends StatelessWidget {
                         .join(' · '),
                   ),
                   for (final item in experience.resolvedDescriptions)
-                    DescriptionItemText(item: item),
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.md),
+                      child: PortfolioDescriptionBox(item: item),
+                    ),
                 ],
               ),
             ),
