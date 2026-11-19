@@ -221,12 +221,7 @@ class _PortfolioBuilderScreenState
           )
         : cvs.first;
     if (!mounted) return;
-    await showExportSheet(
-      context,
-      document: cv,
-      profile: profile,
-      initialMode: ExportMode.atsFriendly,
-    );
+    await showExportSheet(context, document: cv, profile: profile);
   });
 
   @override

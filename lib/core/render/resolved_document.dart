@@ -99,6 +99,7 @@ class ResolvedDocument {
     required this.details,
     required this.contacts,
     required this.summary,
+    this.summaryTitle = '',
     required this.sections,
     required this.allProjects,
   });
@@ -112,6 +113,7 @@ class ResolvedDocument {
 
   /// Professional summary text (empty when hidden or absent).
   final String summary;
+  final String summaryTitle;
 
   /// Renderable sections in reading order, excluding empty ones.
   final List<ResolvedSection> sections;
@@ -272,6 +274,11 @@ class ResolvedDocument {
       details: details,
       contacts: contacts,
       summary: summaryText ?? '',
+      summaryTitle:
+          effectiveDesign
+              .sectionOf(SectionKind.profile)
+              ?.resolvedTitle(defaultTitle) ??
+          defaultTitle(SectionKind.profile),
       sections: sections,
       allProjects: projects,
     );

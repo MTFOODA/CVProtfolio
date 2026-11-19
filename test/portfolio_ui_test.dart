@@ -1,5 +1,6 @@
 import 'package:cv_portfolio_maker/core/design/app_icons.dart';
 import 'package:cv_portfolio_maker/features/settings/settings_screen.dart';
+import 'package:cv_portfolio_maker/features/portfolio/portfolio_settings_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cv_portfolio_maker/core/theme/app_theme.dart';
 
@@ -196,6 +197,11 @@ void main() {
       if (i >= 4 &&
           find.byType(LinearProgressIndicator).evaluate().isEmpty &&
           find.byType(CircularProgressIndicator).evaluate().isEmpty &&
+          !tester
+              .widgetList<PortfolioSettingsTab>(
+                find.byType(PortfolioSettingsTab),
+              )
+              .any((settings) => settings.busy) &&
           !container.read(portfolioProvider).isLoading) {
         break;
       }

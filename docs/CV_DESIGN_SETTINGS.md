@@ -26,9 +26,14 @@ bounded controls; the editor never copies CV profile content into these settings
 - Flutter and PDF use bundled Inter, Lora, Roboto and Noto Naskh Arabic.
   The name can follow the body or use an independent font. Word packages embed
   the chosen fonts, including the Arabic fallback and Material contact glyphs.
-- Date and location metadata uses a trailing column in Right mode and a line
-  under the entry heading in Below Title mode. In RTL documents the trailing
-  column mirrors to the left so reading order remains natural.
+- Date and location metadata reserves its measured width in Right mode, keeping
+  the full date on one line. This applies to projects as well as work/education.
+  A separate Date & Location Font Size control persists per CV. Below Title
+  keeps dates under the title. RTL mirrors the trailing position to the left.
+- School & Employer Position places the institution/company under the title
+  by default, with alternatives beside the title or with the date. Supporting
+  text keeps its lighter color. The Profile heading follows its saved name,
+  casing and visibility in the preview, PDF and Word.
 - Compact contacts wrap, Multi-row contacts stack, and Grid contacts use two
   columns. Long contact values and entry headings wrap without truncation.
 - Word uses native paragraphs, tables, run styles, margins and line spacing.
@@ -37,8 +42,11 @@ bounded controls; the editor never copies CV profile content into these settings
 - The on-screen preview reuses the existing continuous document renderer.
   PDF and Word paginate at export; page breaks can differ because the two
   engines measure fonts and line spacing differently.
-- ATS PDF continues to use the existing simplified layout and removes contact
-  decorations. Designed PDF and Word use the saved design choices.
+- Export has one PDF presentation: the saved design. Preview, Save or share,
+  Portfolio downloads and public CV downloads use it. Contact display names,
+  icons and project link labels stay compact and clickable; full link targets
+  remain PDF actions rather than extra visible text. The internal ATS renderer
+  remains available to compatibility tests, but is not a separate user choice.
 - The optional advanced control adjusts name letter spacing in all three
   renderers. No new photo, content, layout-column or unrelated controls are added.
 
@@ -102,7 +110,8 @@ actual family name and explicit script bindings, so it does not substitute
 Wingdings. No network or icon package is required at runtime. PDF and DOCX include
 real link actions/relationships behind the visible labels, including contact links
 in compact and multi-row arrangements. Unsafe destinations remain noninteractive.
-ATS exports retain full contact URLs and category labels.
+Internal ATS compatibility exports retain full contact URLs and category labels;
+normal application exports preserve the saved presentation.
 
 Regression tests: `test/contact_header_test.dart` and the CV Builder save test in
 `test/cv_builder_wizard_test.dart`. Actual fixtures are written under

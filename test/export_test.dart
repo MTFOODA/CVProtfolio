@@ -697,7 +697,10 @@ void main() {
       expect(text, contains('Projects'));
       expect(text, contains('Difference Engine notes'));
       expect(text, contains('A detailed set of notes.'));
-      expect(text, contains('https://example.com/demo'));
+      expect(text, contains('Demo'));
+      expect(text, isNot(contains('https://example.com/demo')));
+      // The visible text stays compact, while the PDF keeps a real hyperlink.
+      expect(latin1.decode(result.bytes), contains('https://example.com/demo'));
     });
   });
 

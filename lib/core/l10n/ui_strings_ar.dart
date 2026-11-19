@@ -1,6 +1,10 @@
 /// UI copy added by the portfolio, builder and design editor.
 /// User-entered document content is never passed through this table.
 const uiArabicStrings = <String, String>{
+  'School & Employer Position': 'مكان اسم المؤسسة أو جهة العمل',
+  'Beside Title': 'بجوار العنوان',
+  'With Date': 'بجوار التاريخ',
+  'Date & Location Font Size': 'حجم خط التاريخ والموقع',
   'Description items': 'عناصر الوصف',
   'Basic entry (optional)': 'العنوان الأساسي (اختياري)',
   'Choose or type a heading': 'اختَر عنوانًا أو اكتب عنوانك',

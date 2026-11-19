@@ -1,4 +1,4 @@
-/// The export workflow: choose a mode, review validation, generate, save/share.
+/// Export the saved design consistently for preview, save and sharing.
 ///
 /// The sheet never reports success unless the underlying operation actually
 /// completed: generation errors, delivery cancellation and delivery failures
@@ -45,38 +45,28 @@ Future<void> showExportSheet(
   BuildContext context, {
   required CvDocument document,
   required UserProfile profile,
-  ExportMode initialMode = ExportMode.designed,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     sheetAnimationStyle: AppMotion.sheetStyle(context),
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (context) => _ExportSheet(
-      document: document,
-      profile: profile,
-      initialMode: initialMode,
-    ),
+    builder: (context) => _ExportSheet(document: document, profile: profile),
   );
 }
 
 class _ExportSheet extends ConsumerStatefulWidget {
-  const _ExportSheet({
-    required this.document,
-    required this.profile,
-    required this.initialMode,
-  });
+  const _ExportSheet({required this.document, required this.profile});
 
   final CvDocument document;
   final UserProfile profile;
-  final ExportMode initialMode;
 
   @override
   ConsumerState<_ExportSheet> createState() => _ExportSheetState();
 }
 
 class _ExportSheetState extends ConsumerState<_ExportSheet> {
-  late ExportMode _mode = widget.initialMode;
+  static const _mode = ExportMode.designed;
   ExportValidationResult? _validation;
   bool _validating = true;
   bool _busy = false;
@@ -264,34 +254,6 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
             children: [
               Text(context.tr('export'), style: theme.textTheme.titleLarge),
               const SizedBox(height: AppSpacing.sm),
-              SegmentedButton<ExportMode>(
-                segments: [
-                  ButtonSegment(
-                    value: ExportMode.designed,
-                    label: Text(context.tr('exportModeDesigned')),
-                    icon: const Icon(AppIcons.palette),
-                  ),
-                  ButtonSegment(
-                    value: ExportMode.atsFriendly,
-                    label: Text(context.tr('exportModeAts')),
-                    icon: const Icon(AppIcons.checklist),
-                  ),
-                ],
-                selected: {_mode},
-                onSelectionChanged: _busy
-                    ? null
-                    : (selection) {
-                        setState(() => _mode = selection.first);
-                        _validate();
-                      },
-              ),
-              if (_mode == ExportMode.atsFriendly) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  context.tr('exportAtsDisclaimer'),
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
               const SizedBox(height: AppSpacing.md),
               if (_validating)
                 const Padding(

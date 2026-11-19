@@ -353,10 +353,16 @@ class PdfDocumentBuilder {
         head,
         if (summary.isNotEmpty) ...[
           pw.SizedBox(height: style.spacing.itemSpacing),
-          pw.Text(
-            style.text(summary),
-            style: style.style(),
-            textAlign: style.bodyAlign,
+          renderer.heading(resolved.summaryTitle, SectionKind.profile),
+          style.divider(),
+          pw.SizedBox(height: style.spacing.itemSpacing / 2),
+          pw.SizedBox(
+            width: double.infinity,
+            child: pw.Text(
+              style.text(summary),
+              style: style.style(),
+              textAlign: style.bodyAlign,
+            ),
           ),
         ],
         pw.SizedBox(height: style.spacing.sectionSpacing),

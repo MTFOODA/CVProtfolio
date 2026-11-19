@@ -128,6 +128,7 @@ class TypographyConfig {
     this.nameFont,
     this.professionalTitleFontSize,
     this.entryHeaderFontSize,
+    this.dateFontSize,
     this.bodyFontSize = 10.5,
     this.headingFontSize = 18.0,
     this.sectionTitleFontSize = 14.0,
@@ -145,6 +146,12 @@ class TypographyConfig {
   final String? nameFont;
   final double? professionalTitleFontSize;
   final double? entryHeaderFontSize;
+  final double? dateFontSize;
+  double get resolvedDateFontSize {
+    final size = dateFontSize ?? bodyFontSize;
+    return size.isFinite ? size.clamp(6, 24).toDouble() : 10.5;
+  }
+
   String get resolvedNameFont =>
       nameFont == 'body' ? bodyFont : nameFont ?? headingFont;
   double get resolvedProfessionalTitleFontSize =>
@@ -165,6 +172,7 @@ class TypographyConfig {
     String? nameFont,
     double? professionalTitleFontSize,
     double? entryHeaderFontSize,
+    double? dateFontSize,
     double? bodyFontSize,
     double? headingFontSize,
     double? sectionTitleFontSize,
@@ -180,6 +188,7 @@ class TypographyConfig {
     professionalTitleFontSize:
         professionalTitleFontSize ?? this.professionalTitleFontSize,
     entryHeaderFontSize: entryHeaderFontSize ?? this.entryHeaderFontSize,
+    dateFontSize: dateFontSize ?? this.dateFontSize,
     bodyFontSize: bodyFontSize ?? this.bodyFontSize,
     headingFontSize: headingFontSize ?? this.headingFontSize,
     sectionTitleFontSize: sectionTitleFontSize ?? this.sectionTitleFontSize,
@@ -200,6 +209,7 @@ class TypographyConfig {
     professionalTitleFontSize: (json['professionalTitleFontSize'] as num?)
         ?.toDouble(),
     entryHeaderFontSize: (json['entryHeaderFontSize'] as num?)?.toDouble(),
+    dateFontSize: (json['dateFontSize'] as num?)?.toDouble(),
     bodyFontSize: (json['bodyFontSize'] as num?)?.toDouble() ?? 10.5,
     headingFontSize: (json['headingFontSize'] as num?)?.toDouble() ?? 18.0,
     sectionTitleFontSize:
@@ -218,6 +228,7 @@ class TypographyConfig {
     'nameFont': nameFont,
     'professionalTitleFontSize': professionalTitleFontSize,
     'entryHeaderFontSize': entryHeaderFontSize,
+    'dateFontSize': dateFontSize,
     'bodyFontSize': bodyFontSize,
     'headingFontSize': headingFontSize,
     'sectionTitleFontSize': sectionTitleFontSize,
@@ -461,6 +472,7 @@ class PresentationConfig {
     this.showContactLabels = false,
     this.identityArrangement = 'stacked',
     this.dateLocationPosition = 'belowTitle',
+    this.organizationPosition = 'belowTitle',
     this.projectCardStyle = 'card',
     this.projectImageAspectRatio = 1.6,
     this.showProjectTechChips = true,
@@ -493,6 +505,7 @@ class PresentationConfig {
   }
 
   final String dateLocationPosition;
+  final String organizationPosition;
 
   /// Portfolio project card style: `card`, `flat` or `gallery`.
   final String projectCardStyle;
@@ -515,6 +528,7 @@ class PresentationConfig {
     bool? showContactLabels,
     String? identityArrangement,
     String? dateLocationPosition,
+    String? organizationPosition,
     String? projectCardStyle,
     double? projectImageAspectRatio,
     bool? showProjectTechChips,
@@ -532,6 +546,7 @@ class PresentationConfig {
     showContactLabels: showContactLabels ?? this.showContactLabels,
     identityArrangement: identityArrangement ?? this.identityArrangement,
     dateLocationPosition: dateLocationPosition ?? this.dateLocationPosition,
+    organizationPosition: organizationPosition ?? this.organizationPosition,
     projectCardStyle: projectCardStyle ?? this.projectCardStyle,
     projectImageAspectRatio:
         projectImageAspectRatio ?? this.projectImageAspectRatio,
@@ -555,6 +570,7 @@ class PresentationConfig {
         showContactLabels: json['showContactLabels'] as bool? ?? false,
         identityArrangement: '${json['identityArrangement'] ?? 'stacked'}',
         dateLocationPosition: '${json['dateLocationPosition'] ?? 'belowTitle'}',
+        organizationPosition: '${json['organizationPosition'] ?? 'belowTitle'}',
         projectCardStyle: '${json['projectCardStyle'] ?? 'card'}',
         projectImageAspectRatio:
             (json['projectImageAspectRatio'] as num?)?.toDouble() ?? 1.6,
@@ -575,6 +591,7 @@ class PresentationConfig {
     'showContactLabels': showContactLabels,
     'identityArrangement': identityArrangement,
     'dateLocationPosition': dateLocationPosition,
+    'organizationPosition': organizationPosition,
     'projectCardStyle': projectCardStyle,
     'projectImageAspectRatio': projectImageAspectRatio,
     'showProjectTechChips': showProjectTechChips,

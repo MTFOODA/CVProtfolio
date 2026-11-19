@@ -49,6 +49,11 @@ class PdfStyle {
   pdf.PdfColor get dividerColor => pdf.PdfColor.fromInt(colorConfig.divider);
   pdf.PdfColor get secondaryColor =>
       pdf.PdfColor.fromInt(colorConfig.secondary);
+  pdf.PdfColor get projectChipColor => pdf.PdfColor(
+    accentColor.red * .12 + paper.red * .88,
+    accentColor.green * .12 + paper.green * .88,
+    accentColor.blue * .12 + paper.blue * .88,
+  );
 
   /// Page geometry for the configured page size and orientation.
   pdf.PdfPageFormat get pageFormat {
@@ -116,7 +121,7 @@ class PdfStyle {
   pw.TextStyle sectionStyle() => style(
     bold: true,
     size: typography.sectionTitleFontSize * typography.headingScale,
-    color: accentColor,
+    color: ats ? accentColor : headingColor,
     letterSpacing: typography.headingLetterSpacing,
     height: typography.headingLineHeight,
   );
@@ -151,6 +156,9 @@ class PdfStyle {
   pw.TextStyle metaStyle() =>
       style(size: typography.bodyFontSize, color: secondaryColor);
 
+  pw.TextStyle dateStyle() =>
+      style(size: typography.resolvedDateFontSize, color: secondaryColor);
+
   /// Applies the configured casing to a section heading.
   String sectionTitle(String title) =>
       typography.uppercaseSectionTitles ? title.toUpperCase() : title;
@@ -160,11 +168,42 @@ class PdfStyle {
     if (ats || presentation.dividerStyle == DividerStyle.none) {
       return pw.SizedBox.shrink();
     }
+    if (presentation.dividerStyle == DividerStyle.dotted) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 4),
+        child: pw.Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: [
+            for (var i = 0; i < 40; i++)
+              pw.Container(
+                width: 4,
+                height: 4,
+                decoration: pw.BoxDecoration(
+                  color: dividerColor,
+                  shape: pw.BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+    if (presentation.dividerStyle == DividerStyle.gradient) {
+      return pw.Container(
+        height: 2,
+        margin: const pw.EdgeInsets.symmetric(vertical: 4),
+        decoration: pw.BoxDecoration(
+          gradient: pw.LinearGradient(
+            colors: [dividerColor, accentColor, dividerColor],
+          ),
+        ),
+      );
+    }
     final thick = presentation.dividerStyle == DividerStyle.thick;
     return pw.Container(
-      height: thick ? 2 : 1,
+      height: thick ? 3 : 1,
       color: dividerColor,
-      margin: const pw.EdgeInsets.symmetric(vertical: 3),
+      margin: const pw.EdgeInsets.symmetric(vertical: 4),
     );
   }
 

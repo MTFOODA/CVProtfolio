@@ -34,6 +34,17 @@ class CvDesignControls extends StatelessWidget {
               onChanged: (value) =>
                   presentation(p.copyWith(dateLocationPosition: value)),
             ),
+            const DesignLabel('School & Employer Position'),
+            DesignChoices<String>(
+              value: p.organizationPosition,
+              options: const {
+                'belowTitle': 'Below Title',
+                'besideTitle': 'Beside Title',
+                'withDate': 'With Date',
+              },
+              onChanged: (value) =>
+                  presentation(p.copyWith(organizationPosition: value)),
+            ),
           ],
         ),
         DesignCard(
@@ -214,7 +225,7 @@ class CvDesignControls extends StatelessWidget {
         DesignCard(
           title: 'Font Size',
           children: [
-            for (final control in CvDesignValue.values.take(5))
+            for (final control in CvDesignValue.values.take(6))
               DesignNumberControl(
                 control: control,
                 design: design,
@@ -225,7 +236,7 @@ class CvDesignControls extends StatelessWidget {
         DesignCard(
           title: 'Spacing',
           children: [
-            for (final control in CvDesignValue.values.skip(5))
+            for (final control in CvDesignValue.values.skip(6))
               DesignNumberControl(
                 control: control,
                 design: design,

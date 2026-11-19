@@ -226,7 +226,16 @@ String _paragraph(
       : line.boldPrefix != null && text.startsWith(line.boldPrefix!)
       ? _run(line.boldPrefix!, rtl: rtl, bold: true) +
             _run(text.substring(line.boldPrefix!.length), rtl: rtl)
-      : _run(text, rtl: rtl);
+      : _run(
+          text,
+          rtl: rtl,
+          size: line.role == 'entryMeta'
+              ? design.typography.resolvedDateFontSize
+              : null,
+          color: line.role == 'entryMeta' || line.role == 'entryOrganization'
+              ? _hex(design.colors.secondary)
+              : null,
+        );
   final url = line.url?.trim() ?? '';
   final relId = links[url];
   final content = relId != null && isNavigableUrl(url)
@@ -236,8 +245,16 @@ String _paragraph(
   return '<w:p><w:pPr>$props</w:pPr>$content</w:p>';
 }
 
-String _run(String text, {required bool rtl, bool bold = false}) =>
-    '<w:r><w:rPr>${rtl ? '<w:rtl/>' : ''}${bold ? '<w:b/><w:bCs/>' : ''}</w:rPr>'
+String _run(
+  String text, {
+  required bool rtl,
+  bool bold = false,
+  double? size,
+  String? color,
+}) =>
+    '<w:r><w:rPr>${rtl ? '<w:rtl/>' : ''}${bold ? '<w:b/><w:bCs/>' : ''}'
+    '${size == null ? '' : '<w:sz w:val="${(size * 2).round()}"/><w:szCs w:val="${(size * 2).round()}"/>'}'
+    '${color == null ? '' : '<w:color w:val="$color"/>'}</w:rPr>'
     '<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>';
 
 /// Page size and margins, taken from the saved design.

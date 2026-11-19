@@ -8,6 +8,8 @@ library;
 
 import 'package:pdf/widgets.dart' as pw;
 
+import '../design/entry_heading.dart';
+
 import 'package:cv_portfolio_maker/core/domain/enums.dart';
 import 'package:cv_portfolio_maker/core/domain/profile_models.dart';
 import 'package:cv_portfolio_maker/core/export/pdf_style.dart';
@@ -50,7 +52,7 @@ class SectionRenderer {
             style.typography.resolvedEntryHeaderFontSize +
             style.typography.bodyFontSize * 4,
       ),
-    _heading(style.sectionTitle(section.title)),
+    heading(section.title, section.config.kind),
     style.divider(),
     pw.SizedBox(height: style.spacing.itemSpacing / 2),
     for (final entry in _entries(section)) ...[
@@ -77,6 +79,41 @@ class SectionRenderer {
   pw.Widget _heading(String title) =>
       _fullWidth(_text(title, style.sectionStyle()));
 
+  pw.Widget heading(String title, SectionKind kind) {
+    final label = style.sectionTitle(title);
+    final icon = style.fonts.iconFont;
+    final code = sectionIconCodes[kind];
+    if (style.ats ||
+        !style.presentation.showSectionIcons ||
+        icon == null ||
+        code == null) {
+      return _heading(label);
+    }
+    final iconWidget = pw.Text(
+      String.fromCharCode(code),
+      style: pw.TextStyle(
+        font: icon,
+        fontNormal: icon,
+        fontBold: icon,
+        fontItalic: icon,
+        fontBoldItalic: icon,
+        color: style.accentColor,
+        fontSize:
+            style.typography.sectionTitleFontSize *
+            style.typography.headingScale,
+      ),
+    );
+    final text = pw.Expanded(child: _text(label, style.sectionStyle()));
+    return _fullWidth(
+      pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: style.rtl
+            ? [text, pw.SizedBox(width: 6), iconWidget]
+            : [iconWidget, pw.SizedBox(width: 6), text],
+      ),
+    );
+  }
+
   List<pw.Widget> _entries(ResolvedSection section) {
     switch (section.config.kind) {
       case SectionKind.experience:
@@ -84,12 +121,13 @@ class SectionRenderer {
           for (final e in section.experiences)
             _block([
               _entryHeader(
-                joinNonEmpty([e.position, e.company]),
+                e.position ?? '',
                 joinNonEmpty([
+                  e.dateRange.format(),
                   e.location,
                   e.employmentType,
-                  e.dateRange.format(),
                 ]),
+                organization: e.company ?? '',
               ),
               ...e.resolvedDescriptions
                   .where((d) => d.text.trim().isNotEmpty)
@@ -103,11 +141,12 @@ class SectionRenderer {
             _block([
               _entryHeader(
                 joinNonEmpty([e.qualification, e.fieldOfStudy]),
-                joinNonEmpty([e.institution, e.dateRange.format()]),
+                e.dateRange.format(),
+                organization: e.institution ?? '',
               ),
-              if ((e.grade ?? '').trim().isNotEmpty)
-                _optional(joinNonEmpty(['Grade', e.grade]), style.metaStyle()),
-              _optional(e.description, style.style()),
+              if ((e.grade ?? '').trim().isNotEmpty) _bullet(e.grade!),
+              if ((e.description ?? '').trim().isNotEmpty)
+                _bullet(e.description!),
             ]),
         ];
 
@@ -242,32 +281,85 @@ class SectionRenderer {
   pw.Widget _fullWidth(pw.Widget child) =>
       pw.SizedBox(width: double.infinity, child: child);
 
-  pw.Widget _entryHeader(String title, String meta) {
-    if (style.presentation.dateLocationPosition == 'right' && meta.isNotEmpty) {
-      final heading = pw.Expanded(
-        flex: 3,
-        child: _text(title, style.entryStyle()),
-      );
-      final metadata = pw.Expanded(
-        flex: 2,
-        child: pw.Text(
-          style.text(meta),
-          style: style.metaStyle(),
-          textAlign: style.rtl ? pw.TextAlign.left : pw.TextAlign.right,
-        ),
-      );
-      return pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: style.rtl
-            ? [metadata, pw.SizedBox(width: 12), heading]
-            : [heading, pw.SizedBox(width: 12), metadata],
-      );
-    }
+  pw.Widget _entryHeader(
+    String title,
+    String meta, {
+    String organization = '',
+  }) {
+    final content = EntryHeadingContent.resolve(
+      title: title,
+      metadata: meta,
+      organization: organization,
+      presentation: style.presentation,
+    );
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        _text(title, style.entryStyle()),
-        if (meta.isNotEmpty) _text(meta, style.metaStyle()),
+        pw.LayoutBuilder(
+          builder: (context, constraints) {
+            final heading = _text(content.title, style.entryStyle());
+            if (content.metadata.isEmpty) return heading;
+            if (style.presentation.dateLocationPosition != 'right') {
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [heading, _text(content.metadata, style.dateStyle())],
+              );
+            }
+            final available = constraints?.maxWidth ?? width;
+            final date = pw.Text(
+              style.text(content.metadata),
+              style: style.dateStyle(),
+              maxLines: 1,
+            );
+            date.layout(context, const pw.BoxConstraints());
+            final measured = date.box!.width + 1;
+            final alignment = style.rtl
+                ? pw.Alignment.centerLeft
+                : pw.Alignment.centerRight;
+            pw.Widget fitted(double size) => pw.SizedBox(
+              width: size,
+              child: pw.FittedBox(
+                fit: pw.BoxFit.scaleDown,
+                alignment: alignment,
+                child: date,
+              ),
+            );
+            if (available >= 240 && measured <= available * .6) {
+              final metadata = pw.Padding(
+                padding: pw.EdgeInsets.only(
+                  top:
+                      (style.typography.resolvedEntryHeaderFontSize -
+                              style.typography.resolvedDateFontSize)
+                          .clamp(0, 24)
+                          .toDouble() *
+                      .7,
+                ),
+                child: fitted(measured),
+              );
+              return pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: style.rtl
+                    ? [
+                        metadata,
+                        pw.SizedBox(width: 12),
+                        pw.Expanded(child: heading),
+                      ]
+                    : [
+                        pw.Expanded(child: heading),
+                        pw.SizedBox(width: 12),
+                        metadata,
+                      ],
+              );
+            }
+            // Keep the complete date together even in a narrow column.
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [heading, fitted(available)],
+            );
+          },
+        ),
+        if (content.organization.isNotEmpty)
+          _text(content.organization, style.metaStyle()),
       ],
     );
   }
@@ -374,7 +466,7 @@ class SectionRenderer {
       children: [
         for (final p in projects)
           pw.SizedBox(
-            width: gallery ? (width / 2) - style.spacing.itemSpacing : width,
+            width: gallery ? (width - style.spacing.itemSpacing) / 2 : width,
             child: _project(p),
           ),
       ],
@@ -382,27 +474,80 @@ class SectionRenderer {
   }
 
   pw.Widget _project(ProjectEntry p) {
-    final cover = style.ats ? null : _cover(p);
+    final cover = style.ats || style.presentation.projectCardStyle == 'flat'
+        ? null
+        : _cover(p);
     final children = <pw.Widget?>[
       if (cover != null) ...[
         pw.ClipRRect(
-          horizontalRadius: 4,
-          verticalRadius: 4,
-          child: pw.Image(cover, height: 90, fit: pw.BoxFit.cover),
+          horizontalRadius: 8,
+          verticalRadius: 8,
+          child: pw.LayoutBuilder(
+            builder: (context, constraints) {
+              final available = constraints?.maxWidth ?? width;
+              final aspect = style.presentation.projectImageAspectRatio;
+              return pw.Image(
+                cover,
+                width: available,
+                height:
+                    available / (aspect.isFinite && aspect > 0 ? aspect : 1.6),
+                fit: pw.BoxFit.cover,
+              );
+            },
+          ),
         ),
-        pw.SizedBox(height: 4),
+        pw.SizedBox(height: style.spacing.itemSpacing),
       ],
-      _entryTitle(p.title ?? ''),
-      _optional(p.dateRange.format(), style.metaStyle()),
+      _entryHeader(p.title ?? '', p.dateRange.format()),
       _optional(p.summary, style.style()),
       ...p.resolvedDescriptions
           .where((d) => d.text.trim().isNotEmpty)
           .map(_description),
-      if (p.technologies.isNotEmpty)
-        _text(p.technologies.join(', '), style.metaStyle()),
-      _linkLine('Demo', p.demoUrl),
-      _linkLine('Source', p.sourceUrl),
-      _linkLine('Website', p.websiteUrl),
+      if (style.presentation.showProjectTechChips && p.technologies.isNotEmpty)
+        style.ats || style.presentation.projectCardStyle == 'flat'
+            ? _text(p.technologies.join(', '), style.metaStyle())
+            : pw.Padding(
+                padding: const pw.EdgeInsets.only(top: 4),
+                child: pw.Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    for (final tech in p.technologies)
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: pw.BoxDecoration(
+                          color: style.projectChipColor,
+                          borderRadius: pw.BorderRadius.circular(10),
+                        ),
+                        child: _text(
+                          tech,
+                          style.style(
+                            size: style.typography.bodyFontSize - 2,
+                            color: style.accentColor,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+      _fullWidth(
+        pw.Wrap(
+          alignment: style.rtl ? pw.WrapAlignment.end : pw.WrapAlignment.start,
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            for (final link in [
+              ('Demo', p.demoUrl),
+              ('Source', p.sourceUrl),
+              ('Website', p.websiteUrl),
+            ])
+              if (_linkLine(link.$1, link.$2) case final pw.Widget item) item,
+          ],
+        ),
+      ),
     ];
     return _EntryBlock([
       ...children.whereType<pw.Widget>(),
@@ -413,7 +558,30 @@ class SectionRenderer {
   pw.Widget? _linkLine(String label, String? url) {
     final target = url?.trim() ?? '';
     if (target.isEmpty) return null;
-    final text = _text('$label: $target', style.metaStyle());
+    final icon = style.fonts.iconFont;
+    final text = style.ats
+        ? _text('$label: $target', style.metaStyle())
+        : pw.Row(
+            mainAxisSize: pw.MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                pw.Text(
+                  String.fromCharCode(0xe157),
+                  style: pw.TextStyle(
+                    font: icon,
+                    fontNormal: icon,
+                    fontBold: icon,
+                    fontItalic: icon,
+                    fontBoldItalic: icon,
+                    fontSize: style.typography.bodyFontSize,
+                    color: style.secondaryColor,
+                  ),
+                ),
+                pw.SizedBox(width: 3),
+              ],
+              _text(label, style.metaStyle()),
+            ],
+          );
     return isSafeExternalUrl(target)
         ? pw.UrlLink(destination: target, child: text)
         : text;

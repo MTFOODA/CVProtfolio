@@ -2,7 +2,7 @@
 
 CV & Portfolio Builder is a Flutter app (Android, web, Windows) that builds CVs
 and portfolios from one reusable profile, renders them live, and exports
-designed/ATS PDFs plus editable DOCX files. Supabase provides auth, database,
+PDFs matching the saved CV design plus editable DOCX files. Supabase provides auth, database,
 storage and sharing. Normal startup loads the bundled public project settings;
 an explicit offline mode uses local storage.
 

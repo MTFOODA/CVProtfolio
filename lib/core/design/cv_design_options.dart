@@ -26,6 +26,7 @@ enum CvDesignValue {
   title('Professional Title', 8, 24, .5),
   section('Section Headings', 9, 24, .5),
   entry('Entry Header', 8, 20, .5),
+  date('Date & Location Font Size', 6, 24, .5),
   line('Line Height', 1, 1.8, .05),
   elements('Space Between Elements', 0, 24, 1),
   horizontal('Left & Right Margin', 8, 32, 1),
@@ -42,6 +43,7 @@ enum CvDesignValue {
     title => d.typography.resolvedProfessionalTitleFontSize,
     section => d.typography.sectionTitleFontSize * d.typography.headingScale,
     entry => d.typography.resolvedEntryHeaderFontSize,
+    date => d.typography.resolvedDateFontSize,
     line => d.typography.bodyLineHeight,
     elements => d.spacing.itemSpacing,
     horizontal => d.spacing.resolvedHorizontalMargin / pointsPerMm,
@@ -77,6 +79,7 @@ enum CvDesignValue {
         ),
       ),
       entry => d.copyWith(typography: t.copyWith(entryHeaderFontSize: value)),
+      date => d.copyWith(typography: t.copyWith(dateFontSize: value)),
       line => d.copyWith(typography: t.copyWith(bodyLineHeight: value)),
       elements => d.copyWith(
         spacing: s.copyWith(

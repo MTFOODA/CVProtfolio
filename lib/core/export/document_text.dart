@@ -8,6 +8,10 @@
 library;
 
 import 'package:cv_portfolio_maker/core/domain/enums.dart';
+
+import '../domain/document_models.dart';
+import '../design/entry_heading.dart';
+
 import 'package:cv_portfolio_maker/core/render/resolved_document.dart';
 import 'package:cv_portfolio_maker/core/render/section_titles.dart';
 
@@ -96,13 +100,16 @@ List<DocumentLine> flattenDocument(
     );
   }
   final summary = resolved.summary.trim();
-  if (summary.isNotEmpty) lines.add(DocumentLine(summary, level: 3));
+  if (summary.isNotEmpty) {
+    lines.add(DocumentLine(resolved.summaryTitle, isHeading: true, level: 1));
+    lines.add(DocumentLine(summary, level: 3));
+  }
 
   for (final section in resolved.sections) {
     if (section.isPageBreak) continue;
     lines.add(DocumentLine(section.title, isHeading: true, level: 1));
     final start = lines.length;
-    _appendSection(lines, section, languageCode);
+    _appendSection(lines, section, languageCode, resolved.design.presentation);
     if ({
       SectionKind.experience,
       SectionKind.education,
@@ -114,7 +121,10 @@ List<DocumentLine> flattenDocument(
     }.contains(section.config.kind)) {
       for (var i = start + 1; i < lines.length; i++) {
         final line = lines[i];
-        if (lines[i - 1].level == 2 && line.level == 3 && !line.isBullet) {
+        if (lines[i - 1].level == 2 &&
+            line.level == 3 &&
+            !line.isBullet &&
+            line.role == null) {
           lines[i] = DocumentLine(
             line.text,
             level: line.level,
@@ -135,22 +145,33 @@ void _appendSection(
   List<DocumentLine> lines,
   ResolvedSection section,
   String languageCode,
+  PresentationConfig presentation,
 ) {
+  void entryHeading(String title, String metadata, {String organization = ''}) {
+    final content = EntryHeadingContent.resolve(
+      title: title,
+      metadata: metadata,
+      organization: organization,
+      presentation: presentation,
+    );
+    lines.add(DocumentLine(content.title, isHeading: true, level: 2));
+    if (content.metadata.isNotEmpty) {
+      lines.add(DocumentLine(content.metadata, level: 3, role: 'entryMeta'));
+    }
+    if (content.organization.isNotEmpty) {
+      lines.add(
+        DocumentLine(content.organization, level: 3, role: 'entryOrganization'),
+      );
+    }
+  }
+
   switch (section.config.kind) {
     case SectionKind.experience:
       for (final e in section.experiences) {
-        lines.add(
-          DocumentLine(
-            joinParts([e.position, e.company]),
-            isHeading: true,
-            level: 2,
-          ),
-        );
-        lines.add(
-          DocumentLine(
-            joinParts([e.location, e.employmentType, e.dateRange.format()]),
-            level: 3,
-          ),
+        entryHeading(
+          e.position ?? '',
+          joinParts([e.dateRange.format(), e.location, e.employmentType]),
+          organization: e.company ?? '',
         );
         for (final d in e.resolvedDescriptions) {
           if (d.text.trim().isNotEmpty) {
@@ -170,18 +191,10 @@ void _appendSection(
 
     case SectionKind.education:
       for (final e in section.education) {
-        lines.add(
-          DocumentLine(
-            joinParts([e.qualification, e.fieldOfStudy]),
-            isHeading: true,
-            level: 2,
-          ),
-        );
-        lines.add(
-          DocumentLine(
-            joinParts([e.institution, e.dateRange.format()]),
-            level: 3,
-          ),
+        entryHeading(
+          joinParts([e.qualification, e.fieldOfStudy]),
+          e.dateRange.format(),
+          organization: e.institution ?? '',
         );
         if (e.grade != null && e.grade!.trim().isNotEmpty) {
           lines.add(DocumentLine(e.grade!.trim(), level: 3));
@@ -302,12 +315,13 @@ void _appendSection(
           lines.add(DocumentLine(p.technologies.join(', '), level: 3));
         }
         if (p.demoUrl != null && p.demoUrl!.trim().isNotEmpty) {
-          lines.add(DocumentLine(p.demoUrl!.trim(), level: 3, url: p.demoUrl));
+          lines.add(DocumentLine('Demo', level: 3, url: p.demoUrl));
         }
         if (p.sourceUrl != null && p.sourceUrl!.trim().isNotEmpty) {
-          lines.add(
-            DocumentLine(p.sourceUrl!.trim(), level: 3, url: p.sourceUrl),
-          );
+          lines.add(DocumentLine('Source', level: 3, url: p.sourceUrl));
+        }
+        if ((p.websiteUrl ?? '').trim().isNotEmpty) {
+          lines.add(DocumentLine('Website', level: 3, url: p.websiteUrl));
         }
       }
 
