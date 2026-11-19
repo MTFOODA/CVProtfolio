@@ -1,4 +1,5 @@
 import '../../core/design/app_icons.dart';
+import '../../core/branding/app_branding.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -116,7 +117,14 @@ class PortfolioContactActions extends StatelessWidget {
             onLongPress: () => copyPortfolioValue(context, action.copyValue),
             child: IconButton(
               onPressed: () => onOpen(action.uri),
-              icon: Icon(action.icon),
+              icon: action.icon == AppIcons.portfolio
+                  ? Image.asset(
+                      kAppLogoAsset,
+                      width: 26,
+                      height: 26,
+                      excludeFromSemantics: true,
+                    )
+                  : Icon(action.icon),
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),

@@ -13,6 +13,7 @@ import 'package:cv_portfolio_maker/features/portfolio/portfolio_contacts.dart';
 import 'package:cv_portfolio_maker/features/portfolio/portfolio_navigation.dart';
 import 'package:cv_portfolio_maker/features/portfolio/public_portfolio_view.dart';
 import 'package:cv_portfolio_maker/features/portfolio/portfolio_widgets.dart';
+import 'package:cv_portfolio_maker/core/branding/app_branding.dart';
 
 const _document = CvDocument(
   id: 'portfolio',
@@ -353,6 +354,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Contact'), findsNothing);
       final icon = find.byTooltip('Portfolio');
+      final logo = tester.widget<Image>(
+        find.descendant(of: icon, matching: find.byType(Image)),
+      );
+      expect((logo.image as AssetImage).assetName, kAppLogoAsset);
       expect(
         find.ancestor(of: icon, matching: find.byType(AppHeroSurface)),
         findsOneWidget,
