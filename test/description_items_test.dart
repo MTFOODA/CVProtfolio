@@ -102,7 +102,12 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      final heading = find.descendant(
+        of: find.byKey(const ValueKey('description-heading')),
+        matching: find.byType(TextField),
+      );
+      await tester.tap(heading);
+      await tester.enterText(heading, 'Architecture');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Architecture').last);
       await tester.pumpAndSettle();
@@ -136,6 +141,98 @@ void main() {
       await tester.tap(find.text('Add item'));
       await tester.pumpAndSettle();
       expect(value.length, 2);
+    },
+  );
+
+  testWidgets(
+    'custom headings can be typed directly, reopened, reused and cleared',
+    (tester) async {
+      var value = <DescriptionItem>[];
+      final key = GlobalKey<DescriptionItemsEditorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => SingleChildScrollView(
+                child: DescriptionItemsEditor(
+                  key: key,
+                  items: value,
+                  onChanged: (items) => setState(() => value = items),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final heading = find.descendant(
+        of: find.byKey(const ValueKey('description-heading')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(heading, 'Cloud cost optimization');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Entry text'),
+        'Reduced monthly hosting costs',
+      );
+      expect(key.currentState!.commitPending(), isTrue);
+      await tester.pumpAndSettle();
+      expect(value.single.label, 'Cloud cost optimization');
+      expect(
+        DescriptionItem.fromJson(jsonDecode(jsonEncode(value.single.toJson())))
+            .label,
+        'Cloud cost optimization',
+      );
+
+      await tester.tap(find.byTooltip('Edit item'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(heading).controller!.text,
+        'Cloud cost optimization',
+      );
+      await tester.enterText(heading, 'التكامل مع الأنظمة');
+      await tester.tap(find.text('Update item'));
+      await tester.pumpAndSettle();
+      expect(value.single.label, 'التكامل مع الأنظمة');
+
+      await tester.tap(heading);
+      await tester.enterText(heading, 'التكامل');
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(MenuItemButton, 'التكامل مع الأنظمة'),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(heading).controller!.text,
+        'التكامل مع الأنظمة',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Entry text'),
+        'A second item',
+      );
+      expect(key.currentState!.commitPending(), isTrue);
+      await tester.pumpAndSettle();
+      expect(value.last.label, 'التكامل مع الأنظمة');
+
+      await tester.tap(heading);
+      await tester.enterText(heading, 'Risk');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(MenuItemButton, 'Risk management'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(heading).controller!.text,
+        'Risk management',
+      );
+      await tester.enterText(heading, '');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(MenuItemButton, 'No heading'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Entry text'),
+        'Text without a heading',
+      );
+      expect(key.currentState!.commitPending(), isTrue);
+      await tester.pumpAndSettle();
+      expect(value.last.label, '');
+      expect(tester.takeException(), isNull);
     },
   );
 

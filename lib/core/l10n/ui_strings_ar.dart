@@ -3,6 +3,9 @@
 const uiArabicStrings = <String, String>{
   'Description items': 'عناصر الوصف',
   'Basic entry (optional)': 'العنوان الأساسي (اختياري)',
+  'Choose or type a heading': 'اختَر عنوانًا أو اكتب عنوانك',
+  'Type your own heading or search the suggestions.':
+      'اكتب عنوانًا خاصًا بك أو ابحث في العناوين المقترحة.',
   'No heading': 'بدون عنوان',
   'Custom heading': 'عنوان مخصص',
   'Entry text': 'نص العنصر',

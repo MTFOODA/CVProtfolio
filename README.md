@@ -110,7 +110,10 @@ Supabase deployment.
 Visitor images use the deployed `share-media` Edge Function; see
 [the share-media deployment steps](docs/SUPABASE_SHARE_MEDIA_SETUP.md). Project
 and work experience descriptions support separate items with optional headings,
-shown in bold in previews, shared pages, PDF and Word. Existing descriptions
+shown in bold in previews, shared pages, PDF and Word. The searchable heading
+picker includes broad project/work suggestions and accepts custom headings
+typed directly; saved custom headings can be reused within the same description.
+Existing descriptions
 remain readable, and these changes need no new database migration. For the
 reported Android run problem, see [the ADB diagnostic handoff](docs/ANDROID_RUN_DIAGNOSTICS.md)
 and `tools/run_android_debug.ps1` after connecting the phone.

@@ -22,27 +22,79 @@ class DescriptionItemsEditor extends StatefulWidget {
 
 class DescriptionItemsEditorState extends State<DescriptionItemsEditor> {
   static const _labels = [
-    'Architecture',
-    'State management',
-    'Features',
+    'Overview',
+    'Objectives',
+    'Project scope',
+    'My role',
     'Responsibilities',
     'Achievements',
+    'Key results',
+    'Business impact',
+    'Deliverables',
+    'Features',
+    'Architecture',
+    'Design patterns',
+    'State management',
+    'User interface',
+    'User experience',
+    'Accessibility',
+    'Responsive design',
     'Technologies',
+    'Tools',
+    'Platforms',
     'APIs',
+    'Integrations',
     'Database',
+    'Data modeling',
+    'Authentication',
+    'Authorization',
+    'Security',
+    'Privacy',
+    'Payments',
+    'Notifications',
+    'Real-time updates',
+    'Offline support',
+    'Caching',
+    'Error handling',
     'Testing',
+    'Quality assurance',
     'Performance',
+    'Scalability',
+    'CI/CD',
+    'Deployment',
+    'Monitoring',
+    'Maintenance',
+    'Documentation',
+    'Research',
+    'Data analysis',
+    'Automation',
+    'Operations',
+    'Customer support',
+    'Sales and growth',
+    'Marketing',
+    'Budget management',
+    'Risk management',
+    'Collaboration',
+    'Stakeholder management',
+    'Leadership',
+    'Mentoring',
+    'Training',
+    'Process improvements',
+    'Challenges',
+    'Solutions',
+    'Key learnings',
   ];
   final _text = TextEditingController();
-  final _customLabel = TextEditingController();
-  String _label = '';
+  final _heading = TextEditingController();
+  final _recentHeadings = <String>{};
   String? _error;
+  String? _headingError;
   int? _editing;
 
   @override
   void dispose() {
     _text.dispose();
-    _customLabel.dispose();
+    _heading.dispose();
     super.dispose();
   }
 
@@ -51,22 +103,21 @@ class DescriptionItemsEditorState extends State<DescriptionItemsEditor> {
     if (_text.text.trim().isEmpty &&
         !required &&
         _editing == null &&
-        _label.isEmpty &&
-        _customLabel.text.trim().isEmpty) {
+        _heading.text.trim().isEmpty) {
       return true;
     }
-    final error =
-        context.validateText(_text.text, required: true) ??
-        (_label == 'custom'
-            ? context.validateText(_customLabel.text, required: true, max: 100)
-            : null);
-    if (error != null) {
-      setState(() => _error = error);
+    final error = context.validateText(_text.text, required: true);
+    final headingError = context.validateText(_heading.text, max: 100);
+    if (error != null || headingError != null) {
+      setState(() {
+        _error = error;
+        _headingError = headingError;
+      });
       return false;
     }
     final item = DescriptionItem(
       text: _text.text.trim(),
-      label: _label == 'custom' ? _customLabel.text.trim() : _label,
+      label: _heading.text.trim(),
     );
     final items = [...widget.items];
     if (_editing case final int index) {
@@ -74,6 +125,7 @@ class DescriptionItemsEditorState extends State<DescriptionItemsEditor> {
     } else {
       items.add(item);
     }
+    if (item.label.isNotEmpty) _recentHeadings.add(item.label);
     widget.onChanged(items);
     setState(_reset);
     return true;
@@ -81,10 +133,10 @@ class DescriptionItemsEditorState extends State<DescriptionItemsEditor> {
 
   void _reset() {
     _text.clear();
-    _customLabel.clear();
-    _label = '';
+    _heading.clear();
     _editing = null;
     _error = null;
+    _headingError = null;
   }
 
   @override
@@ -114,11 +166,9 @@ class DescriptionItemsEditorState extends State<DescriptionItemsEditor> {
                     final item = widget.items[i];
                     _editing = i;
                     _text.text = item.text;
-                    _label = item.label.isEmpty || _labels.contains(item.label)
-                        ? item.label
-                        : 'custom';
-                    _customLabel.text = _label == 'custom' ? item.label : '';
+                    _heading.text = item.label;
                     _error = null;
+                    _headingError = null;
                   }),
                 ),
                 IconButton(
@@ -138,30 +188,39 @@ class DescriptionItemsEditorState extends State<DescriptionItemsEditor> {
               ],
             ),
           ),
-        DropdownButtonFormField<String>(
-          key: ValueKey('description-label-$_label'),
-          initialValue: _label,
-          isExpanded: true,
-          decoration: InputDecoration(
-            labelText: context.ui('Basic entry (optional)'),
+        DropdownMenu<String>(
+          key: const ValueKey('description-heading'),
+          controller: _heading,
+          expandedInsets: EdgeInsets.zero,
+          menuHeight: 300,
+          requestFocusOnTap: true,
+          enableFilter: true,
+          label: UiText('Basic entry (optional)'),
+          hintText: context.ui('Choose or type a heading'),
+          helperText: context.ui(
+            'Type your own heading or search the suggestions.',
           ),
-          items: [
-            DropdownMenuItem(value: '', child: UiText('No heading')),
-            for (final label in _labels)
-              DropdownMenuItem(value: label, child: Text(label)),
-            DropdownMenuItem(value: 'custom', child: UiText('Custom heading')),
+          errorText: _headingError,
+          inputDecorationTheme: const InputDecorationThemeData(
+            helperMaxLines: 3,
+          ),
+          dropdownMenuEntries: [
+            DropdownMenuEntry(value: '', label: context.ui('No heading')),
+            for (final label in <String>{
+              ..._labels,
+              ..._recentHeadings,
+              for (final item in widget.items)
+                if (item.label.trim().isNotEmpty) item.label.trim(),
+            })
+              DropdownMenuEntry(value: label, label: label),
           ],
-          onChanged: (value) => setState(() => _label = value ?? ''),
+          onSelected: (value) {
+            // Selecting the empty option must leave an empty saved heading,
+            // rather than persisting its translated display label.
+            if (value == '') _heading.clear();
+            setState(() => _headingError = null);
+          },
         ),
-        if (_label == 'custom') ...[
-          const SizedBox(height: 12),
-          TextField(
-            controller: _customLabel,
-            decoration: InputDecoration(
-              labelText: context.ui('Custom heading'),
-            ),
-          ),
-        ],
         const SizedBox(height: 12),
         TextField(
           controller: _text,

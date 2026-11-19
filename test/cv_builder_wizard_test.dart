@@ -278,9 +278,13 @@ void main() {
         find.textContaining('Built things', findRichText: true),
         findsOneWidget,
       );
-      final dropdown = find.byType(DropdownButtonFormField<String>);
+      final dropdown = find.descendant(
+        of: find.byKey(const ValueKey('description-heading')),
+        matching: find.byType(TextField),
+      );
       await tester.ensureVisible(dropdown);
       await tester.tap(dropdown);
+      await tester.enterText(dropdown, 'Architecture');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Architecture').last);
       await tester.pumpAndSettle();
