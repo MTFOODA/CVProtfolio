@@ -62,7 +62,7 @@ def outline():
     return points
 
 
-def render(ratio=1, size=1024, rounded=False, background=INK):
+def render(ratio=1, size=1024, rounded=False, background=INK, foreground=SKY):
     # Launchers apply their own masks to full-bleed masters. In-app artwork
     # instead has transparent rounded corners, matching the approved tile.
     canvas = size * 4
@@ -75,7 +75,7 @@ def render(ratio=1, size=1024, rounded=False, background=INK):
     factor = canvas / 512
     points = [((256 + (x - 256) * ratio) * factor,
                (256 + (y - 256) * ratio) * factor) for x, y in outline()]
-    draw.polygon(points, fill=SKY)
+    draw.polygon(points, fill=foreground)
     return image.resize((size, size), Image.Resampling.LANCZOS)
 
 
@@ -92,7 +92,7 @@ def main():
     for name, ratio in [('app_icon', 1), ('app_icon_foreground', .70), ('app_icon_web', .82)]:
         render(ratio).convert('RGB').save(OUT / f'{name}.png', optimize=True)
     render(size=512, rounded=True).save(OUT / 'app_logo.png', optimize=True)
-    render(size=256, rounded=True, background='#FFFFFF').save(OUT / 'portfolio_link_logo.png', optimize=True)
+    render(size=256, rounded=True, background='#FFFFFF', foreground=(0, 0, 0, 0)).save(OUT / 'portfolio_link_logo.png', optimize=True)
 
     card = Image.new('RGB', (1200, 630), PAPER)
     tile = render(size=260, rounded=True)

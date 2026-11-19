@@ -17,7 +17,7 @@ banner `CV & Portfolio Builder logo.jpg` remains unchanged at the repository roo
 | `app_icon_foreground.png` | 1024x1024 | Android adaptive foreground: full-bleed 108 dp layer with the emblem inside the 66% safe zone |
 | `app_icon_web.png` | 1024x1024 | Web favicon and PWA icons: content inside the 80% maskable safe circle |
 | `app_logo.png` | 512x512 | In-app logo (`kAppLogoAsset`, sign-in screen) |
-| `portfolio_link_logo.png` | 256x256 | Same monogram on white for portfolio contact links |
+| `portfolio_link_logo.png` | 256x256 | White tile with a transparent CV cutout, tinted like the other portfolio contact icons |
 
 The current emblem is rendered directly from vector geometry. Small icon sizes
 omit the product wordmark to keep the CV monogram legible. The in-app PNG uses

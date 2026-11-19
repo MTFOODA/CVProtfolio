@@ -122,6 +122,8 @@ class PortfolioContactActions extends StatelessWidget {
                       kPortfolioLinkLogoAsset,
                       width: 26,
                       height: 26,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      colorBlendMode: BlendMode.srcIn,
                       excludeFromSemantics: true,
                     )
                   : Icon(action.icon),
