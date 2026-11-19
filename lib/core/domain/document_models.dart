@@ -598,10 +598,37 @@ class PresentationConfig {
   };
 }
 
-/// The complete design configuration for a document.
-///
-/// This single model drives on-screen previews, PDF export and public pages so
-/// all outputs stay consistent.
+/// A portfolio-only portrait; never part of the CV profile snapshot.
+class PortfolioAvatarConfig {
+  const PortfolioAvatarConfig({this.path, this.visible = true, this.size = 88});
+  final String? path;
+  final bool visible;
+  final double size;
+  double get resolvedSize => size.isFinite ? size.clamp(64, 144) : 88;
+  String? source(String? legacyAvatar) => visible ? path ?? legacyAvatar : null;
+  PortfolioAvatarConfig copyWith({
+    String? Function()? path,
+    bool? visible,
+    double? size,
+  }) => PortfolioAvatarConfig(
+    path: path == null ? this.path : path(),
+    visible: visible ?? this.visible,
+    size: size ?? this.size,
+  );
+  factory PortfolioAvatarConfig.fromJson(Map<String, dynamic> json) =>
+      PortfolioAvatarConfig(
+        path: json['path'] as String?,
+        visible: json['visible'] as bool? ?? true,
+        size: (json['size'] as num?)?.toDouble() ?? 88,
+      );
+  Map<String, dynamic> toJson() => {
+    'path': path,
+    'visible': visible,
+    'size': resolvedSize,
+  };
+}
+
+/// The complete design configuration shared by previews and exporters.
 class DocumentDesign {
   const DocumentDesign({
     this.layoutMode = LayoutMode.one,
@@ -614,6 +641,7 @@ class DocumentDesign {
     this.templateId = 'minimal',
     this.isRtl = false,
     this.sourceCvId,
+    this.portfolioAvatar = const PortfolioAvatarConfig(),
   });
 
   final LayoutMode layoutMode;
@@ -631,6 +659,9 @@ class DocumentDesign {
   /// CV whose saved content supplies this portfolio.
   final String? sourceCvId;
 
+  /// Stored separately from CV content and ignored by CV renderers/exporters.
+  final PortfolioAvatarConfig portfolioAvatar;
+
   DocumentDesign copyWith({
     LayoutMode? layoutMode,
     TypographyConfig? typography,
@@ -642,6 +673,7 @@ class DocumentDesign {
     String? templateId,
     bool? isRtl,
     String? sourceCvId,
+    PortfolioAvatarConfig? portfolioAvatar,
   }) => DocumentDesign(
     layoutMode: layoutMode ?? this.layoutMode,
     typography: typography ?? this.typography,
@@ -653,6 +685,7 @@ class DocumentDesign {
     templateId: templateId ?? this.templateId,
     isRtl: isRtl ?? this.isRtl,
     sourceCvId: sourceCvId ?? this.sourceCvId,
+    portfolioAvatar: portfolioAvatar ?? this.portfolioAvatar,
   );
 
   factory DocumentDesign.fromJson(Map<String, dynamic> json) {
@@ -693,6 +726,11 @@ class DocumentDesign {
       templateId: '${json['templateId'] ?? 'minimal'}',
       isRtl: json['isRtl'] as bool? ?? false,
       sourceCvId: json['sourceCvId'] as String?,
+      portfolioAvatar: nested(
+        json['portfolioAvatar'],
+        PortfolioAvatarConfig.fromJson,
+        const PortfolioAvatarConfig(),
+      ),
     );
   }
 
@@ -707,6 +745,7 @@ class DocumentDesign {
     'templateId': templateId,
     'isRtl': isRtl,
     if (sourceCvId != null) 'sourceCvId': sourceCvId,
+    'portfolioAvatar': portfolioAvatar.toJson(),
   };
 }
 

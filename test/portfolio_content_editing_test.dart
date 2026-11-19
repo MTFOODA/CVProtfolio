@@ -7,6 +7,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
+import 'package:cv_portfolio_maker/core/utils/optimized_image.dart';
 import 'package:cv_portfolio_maker/core/design/skill_icons.dart';
 import 'package:cv_portfolio_maker/core/domain/profile_models.dart';
 import 'package:cv_portfolio_maker/core/utils/project_media.dart';
@@ -66,6 +68,49 @@ void main() {
   });
   tearDown(() async {
     if (dir.existsSync()) await dir.delete(recursive: true);
+  });
+
+  test(
+    'uploaded portraits and project images are resized before storage',
+    () async {
+      final original = img.Image(width: 2200, height: 1100);
+      for (final pixel in original) {
+        pixel.setRgb(pixel.x % 256, pixel.y % 256, (pixel.x + pixel.y) % 256);
+      }
+      final bytes = img.encodeJpg(original, quality: 95);
+      final avatar = await optimizeUploadImage(bytes, avatar: true);
+      expect(avatar!.contentType, 'image/jpeg');
+      final photo = img.decodeImage(avatar.bytes)!;
+      expect(photo.width, 512);
+      expect(photo.height, 256);
+      expect(avatar.bytes.length, lessThan(bytes.length));
+      final project = await optimizeUploadImage(bytes);
+      expect(img.decodeImage(project!.bytes)!.width, 1600);
+      final stored = await uploadProjectMedia(
+        file: _PickedFile('portrait.png', bytes),
+        repository: backend,
+        ownerId: 'owner',
+        avatar: true,
+      );
+      expect(stored, endsWith('.jpg'));
+      final uri = (await backend.signedUrl('owner', stored))!;
+      final storedFile = File(uri.substring(7));
+      expect(img.decodeImage(await storedFile.readAsBytes())!.width, 512);
+    },
+  );
+
+  test('avatar upload rejects unreadable files and videos', () async {
+    for (final name in ['broken.png', 'demo.mp4']) {
+      await expectLater(
+        uploadProjectMedia(
+          file: _PickedFile(name, Uint8List.fromList([1, 2, 3])),
+          repository: backend,
+          ownerId: 'owner',
+          avatar: true,
+        ),
+        throwsFormatException,
+      );
+    }
   });
 
   test('old profiles retain default icons; chosen icons and media survive reopening', () async {

@@ -43,6 +43,7 @@ class SupabaseBackend
   SupabaseBackend(this._client);
 
   final SupabaseClient _client;
+  final _mediaUrls = <String, ({DateTime expires, Future<String> url})>{};
 
   /// The signed-in user's id, or null when unauthenticated.
   String? get _userId => _client.auth.currentUser?.id;
@@ -347,6 +348,8 @@ class SupabaseBackend
     final hasStoredMedia =
         [
           profile.details.avatarUrl,
+          if (document.type == DocumentType.portfolio)
+            document.design.portfolioAvatar.source(profile.details.avatarUrl),
           ...profile.projects.expand((p) => p.media),
           ...profile.customSections.expand(
             (section) => section.entries.map((entry) => entry.imageUrl),
@@ -371,6 +374,16 @@ class SupabaseBackend
         final data = result.data;
         if (data is Map && data['urls'] is Map) {
           final urls = Map<String, String>.from(data['urls'] as Map);
+          final photo = document.design.portfolioAvatar;
+          if (document.type == DocumentType.portfolio &&
+              photo.path != null &&
+              urls[photo.path] != null) {
+            document = document.copyWith(
+              design: document.design.copyWith(
+                portfolioAvatar: photo.copyWith(path: () => urls[photo.path]),
+              ),
+            );
+          }
           profile = profile.copyWith(
             details: profile.details.copyWith(
               avatarUrl:
@@ -432,7 +445,7 @@ class SupabaseBackend
     required List<int> bytes,
     required String contentType,
   }) async {
-    _requireUserId;
+    _requireOwner(userId);
     // Owner-prefixed path lets storage policies authorise by folder.
     final path = '$userId/${DateTime.now().microsecondsSinceEpoch}_$fileName';
     await _client.storage
@@ -442,24 +455,49 @@ class SupabaseBackend
           Uint8List.fromList(bytes),
           fileOptions: FileOptions(contentType: contentType, upsert: false),
         );
-    final url = await _client.storage
-        .from(Buckets.media)
-        .createSignedUrl(path, 3600);
+    final url = await signedUrl(userId, path) ?? '';
     return StoredObject(storagePath: path, url: url, sizeBytes: bytes.length);
   }
 
   @override
   Future<void> delete(String userId, String storagePath) async {
-    _requireUserId;
+    _requireOwner(userId);
+    _mediaUrls.remove(storagePath);
     await _client.storage.from(Buckets.media).remove([storagePath]);
   }
 
   @override
   Future<String?> signedUrl(String userId, String storagePath) async {
-    _requireUserId;
-    return _client.storage
+    _requireOwner(userId);
+    if (!storagePath.startsWith('$userId/') ||
+        storagePath.contains('\\') ||
+        storagePath
+            .split('/')
+            .any((part) => part.isEmpty || part == '.' || part == '..')) {
+      throw const UnauthorizedException(
+        'Media does not belong to the active account',
+      );
+    }
+    final cached = _mediaUrls[storagePath];
+    if (cached != null && cached.expires.isAfter(DateTime.now())) {
+      return cached.url;
+    }
+    final request = _client.storage
         .from(Buckets.media)
         .createSignedUrl(storagePath, 3600);
+    if (_mediaUrls.length >= 256) _mediaUrls.clear();
+    _mediaUrls[storagePath] = (
+      expires: DateTime.now().add(const Duration(minutes: 45)),
+      url: request,
+    );
+    try {
+      return await request;
+    } catch (_) {
+      if (identical(_mediaUrls[storagePath]?.url, request)) {
+        _mediaUrls.remove(storagePath);
+      }
+      rethrow;
+    }
   }
 
   @override

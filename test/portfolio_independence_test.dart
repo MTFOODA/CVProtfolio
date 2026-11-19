@@ -14,6 +14,8 @@ import 'package:cv_portfolio_maker/data/local/local_store.dart';
 import 'package:cv_portfolio_maker/data/portfolio_documents.dart';
 import 'package:cv_portfolio_maker/features/portfolio/portfolio_controller.dart';
 import 'package:cv_portfolio_maker/features/portfolio/portfolio_settings_screen.dart';
+import 'package:cv_portfolio_maker/core/export/export_service.dart';
+import 'package:cv_portfolio_maker/core/export/export_fonts.dart';
 
 class _Session extends SessionController {
   @override
@@ -68,6 +70,64 @@ void main() {
     container.dispose();
     await directory.delete(recursive: true);
   });
+
+  test(
+    'portfolio portrait stays separate on CV edits, sharing and PDF export',
+    () async {
+      await backend.saveDocument(first);
+      final paired = await syncCvPortfolio(backend, first);
+      final withPhoto = paired.copyWith(
+        design: paired.design.copyWith(
+          portfolioAvatar: const PortfolioAvatarConfig(
+            path: 'owner/photo.jpg',
+            size: 120,
+          ),
+        ),
+      );
+      await backend.saveDocument(withPhoto);
+      await backend.saveDocument(first.copyWith(title: 'Updated CV'));
+      final restored = (await backend.loadDocument(paired.id, 'owner'))!;
+      expect(restored.design.portfolioAvatar.path, 'owner/photo.jpg');
+      expect(restored.design.portfolioAvatar.size, 120);
+      expect(
+        (await backend.loadDocument(
+          first.id,
+          'owner',
+        ))!.profileSnapshot!.details.avatarUrl,
+        isNull,
+      );
+      expect((await backend.loadProfile('owner'))!.details.avatarUrl, isNull);
+      expect(
+        CvDocument.fromJson(restored.toJson()).design.portfolioAvatar.size,
+        120,
+      );
+      final requests = <String>[];
+      final exporter = DocumentExporter(
+        fonts: const BaseFontSource(),
+        imageLoader: (url) async {
+          requests.add(url);
+          return null;
+        },
+      );
+      for (final mode in ExportMode.values) {
+        await exporter.export(
+          document: first,
+          profile: first.profileSnapshot!,
+          mode: mode,
+        );
+      }
+      expect(requests, isNot(contains('owner/photo.jpg')));
+      expect(const PortfolioAvatarConfig(size: 1000).resolvedSize, 144);
+      expect(const PortfolioAvatarConfig(size: -1).resolvedSize, 64);
+      expect(
+        const PortfolioAvatarConfig(
+          visible: false,
+          path: 'owner/photo.jpg',
+        ).source(null),
+        isNull,
+      );
+    },
+  );
 
   test(
     'saving, duplicating and retrying CVs creates exactly one portfolio per CV',

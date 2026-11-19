@@ -29,7 +29,7 @@ test('only authorised visible owner paths are signed after password verification
   const response = await handleShareMedia(request(), env, async (url, options) => {
     calls.push({ url, options });
     if (url.includes('/rpc/')) return Response.json(payload);
-    return Response.json({ signedURL: '/object/sign/document-media/owner/demo.mp4?token=temporary' });
+    return Response.json([{path:'owner/demo.mp4', signedURL: '/object/sign/document-media/owner/demo.mp4?token=temporary'}]);
   });
   assert.equal(response.status, 200);
   const result = await response.json();
@@ -38,7 +38,7 @@ test('only authorised visible owner paths are signed after password verification
   assert.equal(calls.length, 2);
   assert.equal(calls[0].options.headers.Authorization, 'Bearer anon');
   assert.equal(calls[1].options.headers.Authorization, 'Bearer service');
-  assert.deepEqual(JSON.parse(calls[1].options.body), { expiresIn: 3600 });
+  assert.deepEqual(JSON.parse(calls[1].options.body), { expiresIn: 3600, paths: ['owner/demo.mp4'] });
   assert.equal(JSON.stringify(result).includes('service'), false);
 });
 
@@ -74,15 +74,15 @@ test('legacy private-bucket URLs are refreshed without trusting foreign origins 
     'https://backend.test/storage/v1/object/public/document-media/another/private.png',
     'https://backend.test/storage/v1/object/public/document-media/owner/a%2F..%2Fsecret.png'];
   const paths = [];
-  const response = await handleShareMedia(request(), env, async url => {
+  const response = await handleShareMedia(request(), env, async (url, options) => {
     if (url.includes('/rpc/')) return Response.json(shared);
-    paths.push(url);
-    return Response.json({signedURL:'/object/sign/document-media/owner/fresh.png?token=fresh'});
+    paths.push(...JSON.parse(options.body).paths);
+    return Response.json(JSON.parse(options.body).paths.map(path => ({path,signedURL:'/object/sign/document-media/owner/fresh.png?token=fresh'})));
   });
   const result = await response.json();
   assert.deepEqual(Object.keys(result.urls).sort(), [old, publicUrl].sort());
   assert.equal(paths.length, 2);
-  assert.ok(paths.some(path => path.endsWith('/owner/cover%20image.png')));
+  assert.ok(paths.some(path => path === 'owner/cover image.png'));
 });
 
 for (const documentType of ['cv', 'portfolio']) {
@@ -94,7 +94,7 @@ test(`${documentType} signing uses its saved snapshot and excludes other CV medi
   const response = await handleShareMedia(request(), env, async url => {
     calls.push(url);
     return url.includes('/rpc/') ? Response.json(shared)
-      : Response.json({signedURL:'/object/sign/document-media/owner/snapshot.png?token=fresh'});
+      : Response.json([{path:'owner/snapshot.png',signedURL:'/object/sign/document-media/owner/snapshot.png?token=fresh'}]);
   });
   assert.deepEqual(Object.keys((await response.json()).urls), ['owner/snapshot.png']);
   assert.equal(calls.length, 2);
@@ -116,11 +116,45 @@ test('custom entry images require visible sections/entries and owner paths', asy
       hiddenEntryIds:mode === 'hidden-entry' ? ['entry'] : [],
     });
     const response = await handleShareMedia(request(), env, async url =>
-      url.includes('/rpc/') ? Response.json(shared) : Response.json({signedURL:'/object/sign/document-media/owner/certificate.png?token=temporary'}));
+      url.includes('/rpc/') ? Response.json(shared) : Response.json([{path:'owner/certificate.png',signedURL:'/object/sign/document-media/owner/certificate.png?token=temporary'}]));
     assert.equal(response.status,200);
     const result = await response.json();
     assert.equal(Boolean(result.urls['owner/certificate.png']), ['default','visible'].includes(mode));
     assert.equal(result.urls['someone-else/private.png'],undefined);
     assert.equal(result.urls['owner/../someone-else/private.png'],undefined);
+  }
+});
+
+test('many authorized images require one batch signing request', async () => {
+  const shared = structuredClone(payload);
+  shared.profile.projects[0].media = Array.from({length:100}, (_, i) => `owner/image-${i}.jpg`);
+  let calls = 0;
+  const response = await handleShareMedia(request(), env, async (url, options) => {
+    calls++;
+    if (url.includes('/rpc/')) return Response.json(shared);
+    const body = JSON.parse(options.body);
+    assert.equal(body.paths.length, 100);
+    return Response.json(body.paths.map(path => ({path, signedURL:`/object/sign/document-media/${path}?token=ok`})));
+  });
+  assert.equal(Object.keys((await response.json()).urls).length, 100);
+  assert.equal(calls, 2);
+});
+
+test('portfolio photo visibility and ownership are enforced without adding it to a CV', async () => {
+  for (const [type, visible, path, expected] of [
+    ['portfolio',true,'owner/photo.jpg',true],
+    ['portfolio',false,'owner/photo.jpg',false],
+    ['portfolio',true,'other/photo.jpg',false],
+    ['cv',true,'owner/photo.jpg',false],
+  ]) {
+    const shared = structuredClone(payload);
+    shared.document.type = type;
+    shared.document.design.portfolioAvatar = {path,visible,size:144};
+    shared.profile.projects = [];
+    const response = await handleShareMedia(request(), env, async (url, options) => {
+      if (url.includes('/rpc/')) return Response.json(shared);
+      return Response.json(JSON.parse(options.body).paths.map(p => ({path:p,signedURL:`/object/sign/document-media/${p}?token=ok`})));
+    });
+    assert.equal(Boolean((await response.json()).urls['owner/photo.jpg']), expected);
   }
 });

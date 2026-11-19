@@ -1,5 +1,10 @@
 import '../about/about_app_screen.dart';
 import 'portfolio_cv_picker.dart';
+
+import 'package:file_picker/file_picker.dart';
+
+import '../../core/utils/project_media.dart';
+import '../../core/utils/utils.dart';
 import '../../core/utils/profile_content.dart';
 import '../../core/design/app_icons.dart';
 import '../../core/theme/app_tokens.dart';
@@ -237,6 +242,35 @@ class _PortfolioBuilderScreenState
     await showExportSheet(context, document: cv, profile: profile);
   });
 
+  Future<void> _uploadPhoto(CvDocument document) => _run(() async {
+    final file = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: allowedImageExtensions,
+    );
+    if (file == null || !mounted) return;
+    final path = await uploadProjectMedia(
+      file: file,
+      repository: ref.read(backendProvider),
+      ownerId: document.ownerId,
+      avatar: true,
+    );
+    if (!mounted) return;
+    final current = ref.read(portfolioProvider).value;
+    if (current?.id != document.id) return;
+    await ref
+        .read(portfolioProvider.notifier)
+        .save(
+          current!.copyWith(
+            design: current.design.copyWith(
+              portfolioAvatar: current.design.portfolioAvatar.copyWith(
+                path: () => path,
+                visible: true,
+              ),
+            ),
+          ),
+        );
+  });
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(sessionProvider2).value;
@@ -331,6 +365,7 @@ class _PortfolioBuilderScreenState
         onPublish: _publication,
         onPassword: _password,
         onCopy: () => _share(document, copy: true),
+        onUploadPhoto: () => _uploadPhoto(document),
         embedded: widget.embeddedSettings,
       );
       body = widget.settingsOnly

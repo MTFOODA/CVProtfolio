@@ -38,6 +38,7 @@ class _PortfolioProjectMediaState extends ConsumerState<PortfolioProjectMedia>
   bool _loading = false;
   String? _error;
   int _generation = 0;
+  late bool _imageRequested = widget.active;
 
   @override
   void initState() {
@@ -48,6 +49,7 @@ class _PortfolioProjectMediaState extends ConsumerState<PortfolioProjectMedia>
   @override
   void didUpdateWidget(PortfolioProjectMedia oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.active) _imageRequested = true;
     if (oldWidget.source != widget.source ||
         oldWidget.ownerId != widget.ownerId) {
       _generation++;
@@ -180,11 +182,13 @@ class _PortfolioProjectMediaState extends ConsumerState<PortfolioProjectMedia>
     if (source == null || !isProjectVideo(source)) {
       return AspectRatio(
         aspectRatio: 1.8,
-        child: PortfolioImage(
-          source: source,
-          ownerId: widget.ownerId,
-          fallback: _placeholder(context),
-        ),
+        child: !_imageRequested
+            ? _placeholder(context)
+            : PortfolioImage(
+                source: source,
+                ownerId: widget.ownerId,
+                fallback: _placeholder(context),
+              ),
       );
     }
     final controller = _controller;

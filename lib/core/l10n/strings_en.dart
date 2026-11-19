@@ -383,6 +383,13 @@ const Map<String, String> enStrings = {
   'themeForest': 'Forest',
   'themeRose': 'Rose',
   'themeSky': 'Sky blue',
+  'portfolioPhoto': 'Portfolio profile photo',
+  'portfolioPhotoHint':
+      'Shown only in your portfolio. It is never added to your CV.',
+  'uploadPhoto': 'Upload or change photo',
+  'removePhoto': 'Remove photo',
+  'showPortfolioPhoto': 'Show profile photo',
+  'portfolioPhotoSize': 'Photo size',
   'themeCustom': 'Custom theme',
   'heroSection': 'Hero section',
   'contactMe': 'Contact me',

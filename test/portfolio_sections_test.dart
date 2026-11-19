@@ -12,6 +12,7 @@ import 'package:cv_portfolio_maker/core/widgets/app_surfaces.dart';
 import 'package:cv_portfolio_maker/features/portfolio/portfolio_contacts.dart';
 import 'package:cv_portfolio_maker/features/portfolio/portfolio_navigation.dart';
 import 'package:cv_portfolio_maker/features/portfolio/public_portfolio_view.dart';
+import 'package:cv_portfolio_maker/features/portfolio/portfolio_widgets.dart';
 
 const _document = CvDocument(
   id: 'portfolio',
@@ -85,6 +86,50 @@ ResolvedDocument resolve(
 );
 
 void main() {
+  testWidgets('visitor portrait reads portfolio visibility and bounded size', (
+    tester,
+  ) async {
+    var photo = const PortfolioAvatarConfig(path: '', size: 120);
+    late StateSetter update;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              update = setState;
+              final document = _document.copyWith(
+                design: _document.design.copyWith(portfolioAvatar: photo),
+              );
+              return PublicPortfolioView(
+                document: document,
+                profile: _profile,
+                resolved: resolve(_profile, document),
+                onOpen: (_) {},
+                onDownload: () {},
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final portrait = find.byType(PortfolioImage).first;
+    expect(tester.getSize(portrait).width, 120);
+    update(
+      () => photo = const PortfolioAvatarConfig(
+        path: 'https://example.test/photo.jpg',
+        visible: false,
+        size: 1000,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<PortfolioImage>(portrait).source, isNull);
+    expect(tester.getSize(portrait).width, 144);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   test('page availability follows resolved visibility and typed additions', () {
     expect(
       PortfolioContent(

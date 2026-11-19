@@ -49,6 +49,8 @@ class PortfolioAboutTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final details = profile.details;
+    final avatar = document.design.portfolioAvatar;
+    final avatarSize = avatar.resolvedSize;
     final accent = Theme.of(context).colorScheme.primary;
     final avatarAccent = Color.lerp(accent, AppPalette.ice, .70)!;
     final intro =
@@ -108,8 +110,8 @@ class PortfolioAboutTab extends StatelessWidget {
             child: Column(
               children: [
                 Container(
-                  width: 88,
-                  height: 88,
+                  width: avatarSize,
+                  height: avatarSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     boxShadow: [
@@ -122,7 +124,8 @@ class PortfolioAboutTab extends StatelessWidget {
                   ),
                   child: ClipOval(
                     child: PortfolioImage(
-                      source: details.avatarUrl,
+                      source: avatar.source(details.avatarUrl),
+                      decodeWidth: 432,
                       ownerId: profile.id,
                       fallback: Container(
                         decoration: BoxDecoration(

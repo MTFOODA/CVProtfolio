@@ -390,14 +390,23 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final toggle = find.byType(SwitchListTile);
-      await tester.ensureVisible(toggle);
+      final toggle = find.widgetWithText(
+        SwitchListTile,
+        'Sign in with biometrics',
+      );
+      final settingsScroll = find
+          .descendant(
+            of: find.byType(SettingsScreen),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(toggle, 350, scrollable: settingsScroll);
       await tester.pumpAndSettle();
       await tester.tap(toggle);
       await tester.pumpAndSettle();
       expect(preferences.ownerId, owner.id);
       final logout = find.byKey(const ValueKey('account-logout'));
-      await tester.ensureVisible(logout);
+      await tester.scrollUntilVisible(logout, 250, scrollable: settingsScroll);
       await tester.tap(logout);
       await tester.pumpAndSettle();
       expect(auth.signOutCalls, 0);

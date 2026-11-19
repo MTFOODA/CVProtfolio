@@ -19,9 +19,36 @@ class _Auth extends Fake implements GoTrueClient {
 }
 
 class _Client extends Fake implements SupabaseClient {
-  _Client(this.auth);
+  _Client(this.auth, {this.media});
+  final SupabaseStorageClient? media;
   @override
   final GoTrueClient auth;
+  @override
+  SupabaseStorageClient get storage => media!;
+}
+
+class _Files extends Fake implements StorageFileApi {
+  int calls = 0;
+  bool fail = false;
+  @override
+  Future<String> createSignedUrl(
+    String path,
+    int expiresIn, {
+    TransformOptions? transform,
+    DownloadBehavior? download,
+    String? cacheNonce,
+  }) async {
+    calls++;
+    if (fail) throw StateError('offline');
+    return 'https://storage.test/$path?token=$calls';
+  }
+}
+
+class _Storage extends Fake implements SupabaseStorageClient {
+  _Storage(this.files);
+  final _Files files;
+  @override
+  StorageFileApi from(String id) => files;
 }
 
 class _Backend extends SupabaseBackend {
@@ -32,6 +59,42 @@ class _Backend extends SupabaseBackend {
 }
 
 void main() {
+  test('image URL requests share an in-flight request and cached URL without bypassing ownership', () async {
+    final auth = _Auth()..user = user('owner');
+    final files = _Files();
+    final backend = SupabaseBackend(_Client(auth, media: _Storage(files)));
+    final urls = await Future.wait(
+      List.generate(10, (_) => backend.signedUrl('owner', 'owner/photo.jpg')),
+    );
+    expect(urls.toSet().length, 1);
+    expect(files.calls, 1);
+    expect(await backend.signedUrl('owner', 'owner/photo.jpg'), urls.first);
+    expect(files.calls, 1);
+    auth.user = user('other');
+    await expectLater(
+      backend.signedUrl('owner', 'owner/photo.jpg'),
+      throwsA(isA<UnauthorizedException>()),
+    );
+    await expectLater(
+      backend.signedUrl('other', 'owner/photo.jpg'),
+      throwsA(isA<UnauthorizedException>()),
+    );
+    expect(files.calls, 1);
+  });
+
+  test('failed image URL lookups are retried rather than cached', () async {
+    final files = _Files()..fail = true;
+    final backend = SupabaseBackend(
+      _Client(_Auth()..user = user('owner'), media: _Storage(files)),
+    );
+    await expectLater(
+      backend.signedUrl('owner', 'owner/photo.jpg'),
+      throwsStateError,
+    );
+    files.fail = false;
+    expect(await backend.signedUrl('owner', 'owner/photo.jpg'), isNotNull);
+    expect(files.calls, 2);
+  });
   test('account deletion rejects a stale owner before cleanup', () async {
     final auth = _Auth()..user = user('other');
     var cleaned = false;

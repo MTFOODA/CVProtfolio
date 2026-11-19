@@ -13,6 +13,7 @@ import '../../core/l10n/app_strings.dart';
 import '../../core/render/section_titles.dart';
 import 'portfolio_widgets.dart';
 import '../../core/widgets/app_motion.dart';
+import 'portfolio_avatar_settings.dart';
 
 /// Embedded settings tab. All writes are delegated to the shared controller.
 class PortfolioSettingsTab extends StatelessWidget {
@@ -28,6 +29,7 @@ class PortfolioSettingsTab extends StatelessWidget {
     this.embedded = false,
     this.customSectionTitles = const {},
     this.profile,
+    this.onUploadPhoto,
   });
   final bool embedded;
   final UserProfile? profile;
@@ -39,6 +41,7 @@ class PortfolioSettingsTab extends StatelessWidget {
   final ValueChanged<bool> onPublish;
   final ValueChanged<bool> onPassword;
   final VoidCallback onCopy;
+  final VoidCallback? onUploadPhoto;
 
   void _sections(List<SectionConfig> sections) => onSave(
     document.copyWith(design: document.design.copyWith(sections: sections)),
@@ -64,6 +67,13 @@ class PortfolioSettingsTab extends StatelessWidget {
       id: 'portfolio-settings',
       embedded: embedded,
       children: [
+        PortfolioAvatarSettings(
+          document: document,
+          busy: busy,
+          legacyAvatar: profile?.details.avatarUrl,
+          onSave: onSave,
+          onUpload: onUploadPhoto,
+        ),
         const _Label('Color Theme'),
         LayoutBuilder(
           builder: (context, constraints) {

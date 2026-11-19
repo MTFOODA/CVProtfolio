@@ -82,25 +82,37 @@ export async function handleShareMedia(
         if (entry.visible !== false && (matching.length === 0 || configs.some((s: any) => !(s.hiddenEntryIds ?? []).includes(entry.id)))) collect(entry.imageUrl);
       }
     }
-    // The avatar is already part of the authorised document header payload.
-    collect(payload.profile.details?.avatarUrl);
+    // Portfolio photos are settings on this document, never CV profile content.
+    const avatar = payload.document.design?.portfolioAvatar;
+    if (payload.document.type === "portfolio") {
+      if (avatar?.visible !== false) collect(avatar?.path ?? payload.profile.details?.avatarUrl);
+    } else {
+      collect(payload.profile.details?.avatarUrl);
+    }
     if (paths.size > 200) return reply({ error: "Too many media objects" }, 422);
     const signed: Record<string, string> = {};
-    // Bounded batches avoid exhausting storage connections on larger portfolios.
-    const entries = [...paths];
-    for (let offset = 0; offset < entries.length; offset += 8) {
-      await Promise.all(entries.slice(offset, offset + 8).map(async ([original, path]) => {
-        const encoded = path.split("/").map(encodeURIComponent).join("/");
-        const result = await fetcher(`${url}/storage/v1/object/sign/document-media/${encoded}`, {
-          method: "POST", headers: { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ expiresIn: 3600 }),
-        });
-        if (!result.ok) return;
+    // One Storage request signs all authorized objects, instead of making the
+    // page wait for multiple sequential batches of individual signing calls.
+    if (paths.size > 0) {
+      const result = await fetcher(`${url}/storage/v1/object/sign/document-media`, {
+        method: "POST", headers: { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresIn: 3600, paths: [...new Set(paths.values())] }),
+      });
+      if (result.ok) {
         const body = await result.json();
-        if (typeof body.signedURL === "string") {
-          signed[original] = body.signedURL.startsWith("/") ? `${url}/storage/v1${body.signedURL}` : body.signedURL;
+        if (Array.isArray(body)) for (const item of body) {
+          if (item.error || typeof item.path !== "string" || typeof item.signedURL !== "string") continue;
+          // Accept only paths we authorized, including legacy URL aliases.
+          for (const [original, path] of paths) if (path === item.path) {
+            const destination = new URL(item.signedURL.startsWith('/')
+              ? `${url}/storage/v1${item.signedURL}` : item.signedURL);
+            if (destination.origin === new URL(url).origin &&
+                destination.pathname.startsWith('/storage/v1/object/sign/document-media/')) {
+              signed[original] = destination.toString();
+            }
+          }
         }
-      }));
+      }
     }
     // Return only the authorised path->URL mapping. Never return service keys,
     // hashes, arbitrary user-supplied paths or additional profile records.

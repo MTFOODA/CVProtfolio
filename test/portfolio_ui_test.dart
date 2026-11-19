@@ -6,6 +6,8 @@ import 'package:cv_portfolio_maker/core/theme/app_theme.dart';
 import 'package:cv_portfolio_maker/core/widgets/app_surfaces.dart';
 import 'package:cv_portfolio_maker/core/design/portfolio_themes.dart';
 import 'package:cv_portfolio_maker/features/portfolio/portfolio_theme.dart';
+import 'package:cv_portfolio_maker/features/portfolio/portfolio_avatar_settings.dart';
+import 'package:file_picker/file_picker.dart';
 
 import 'dart:io';
 import 'dart:async';
@@ -45,6 +47,44 @@ class _Session extends SessionController {
     email: 'ada@example.test',
     displayName: 'Ada Lovelace',
   );
+}
+
+final class _PhotoFile extends PlatformFile {
+  _PhotoFile(this.bytes);
+  final Uint8List bytes;
+  @override
+  String get name => 'portrait.png';
+  @override
+  Uri get uri => Uri.file('/portrait.png');
+  @override
+  Never get xFile => throw UnimplementedError();
+  @override
+  int lengthSync() => bytes.length;
+  @override
+  Future<int> length() async => bytes.length;
+  @override
+  Future<Uint8List> readAsBytes() async => bytes;
+  @override
+  Stream<Uint8List> readAsByteStream() => Stream.value(bytes);
+}
+
+class _PhotoPicker extends FilePickerPlatform {
+  _PhotoPicker(this.file);
+  final PlatformFile file;
+  @override
+  Future<PlatformFile?> pickFile({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    int compressionQuality = 0,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async => file;
 }
 
 class _Backend extends LocalBackend {
@@ -300,6 +340,82 @@ void main() {
     });
   }
 
+  testWidgets('portfolio photo upload, size and visibility survive reopening', (
+    tester,
+  ) async {
+    final file = await tester.runAsync(() async {
+      final recorder = PictureRecorder();
+      Canvas(recorder).drawRect(
+        const Rect.fromLTWH(0, 0, 20, 20),
+        Paint()..color = Colors.blue,
+      );
+      final picture = recorder.endRecording();
+      final pictureImage = await picture.toImage(20, 20);
+      final bytes = (await pictureImage.toByteData(
+        format: ImageByteFormat.png,
+      ))!.buffer.asUint8List();
+      pictureImage.dispose();
+      picture.dispose();
+      return _PhotoFile(bytes);
+    });
+    final oldPicker = FilePickerPlatform.instance;
+    FilePickerPlatform.instance = _PhotoPicker(file!);
+    addTearDown(() => FilePickerPlatform.instance = oldPicker);
+    await mount(tester, tab: 3);
+    expect(find.byType(PortfolioAvatarSettings), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('portfolio-photo-upload')));
+    await settle(tester);
+    final photo = container
+        .read(portfolioProvider)
+        .value!
+        .design
+        .portfolioAvatar;
+    expect(photo.path, startsWith('owner/'));
+    expect(photo.visible, isTrue);
+    final slider = tester.widget<Slider>(
+      find.byKey(const ValueKey('portfolio-photo-size')),
+    );
+    slider.onChanged!(120);
+    slider.onChangeEnd!(120);
+    await settle(tester);
+    final toggle = find.widgetWithText(SwitchListTile, 'Show profile photo');
+    await tester.ensureVisible(toggle);
+    await settle(tester);
+    await tester.tap(toggle);
+    await settle(tester);
+    expect(
+      container.read(portfolioProvider).value!.design.portfolioAvatar.visible,
+      isFalse,
+    );
+    await tab(tester, 'About');
+    expect(
+      tester.widget<PortfolioImage>(find.byType(PortfolioImage).first).source,
+      isNull,
+    );
+    await tab(tester, 'Settings');
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Show profile photo'));
+    await settle(tester);
+    await screenshot(tester, 'portfolio-photo-settings-phone');
+    await tab(tester, 'About');
+    await screenshot(tester, 'portfolio-photo-visible-phone');
+    expect(
+      tester.widget<PortfolioImage>(find.byType(PortfolioImage).first).source,
+      photo.path,
+    );
+    final saved = await tester.runAsync(
+      () => local.loadDocument(document.id, 'owner'),
+    );
+    expect(saved!.design.portfolioAvatar.size, 120);
+    expect(saved.design.portfolioAvatar.path, photo.path);
+    expect(
+      (await tester.runAsync(() => local.loadProfile('owner')))!
+          .details
+          .avatarUrl,
+      isNull,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'available portfolio pages retain state while global settings stay accessible',
     (tester) async {
@@ -395,6 +511,7 @@ void main() {
       expect(find.byTooltip('Hide Education'), findsNothing);
       final projects = find.byTooltip('Hide Projects');
       await tester.ensureVisible(projects);
+      await settle(tester);
       await tester.tap(projects);
       await settle(tester);
       expect(find.byTooltip('Show Projects'), findsOneWidget);

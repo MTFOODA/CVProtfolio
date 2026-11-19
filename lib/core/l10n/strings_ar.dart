@@ -380,6 +380,13 @@ const Map<String, String> arStrings = {
   'themeForest': 'الغابة',
   'themeRose': 'الوردة',
   'themeSky': 'الأزرق السماوي',
+  'portfolioPhoto': 'الصورة الشخصية للبورتفوليو',
+  'portfolioPhotoHint':
+      'تظهر في البورتفوليو فقط، ولا تُضاف إلى السيرة الذاتية.',
+  'uploadPhoto': 'رفع أو تغيير الصورة',
+  'removePhoto': 'إزالة الصورة',
+  'showPortfolioPhoto': 'إظهار الصورة الشخصية',
+  'portfolioPhotoSize': 'حجم الصورة',
   'themeCustom': 'سمة مخصصة',
   'heroSection': 'القسم الرئيسي',
   'contactMe': 'تواصل معي',

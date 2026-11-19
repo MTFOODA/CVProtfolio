@@ -66,6 +66,15 @@ content cards. The colored palettes reuse the graphite gradient stops and match
 their luminance in light and dark modes. Foreground colors remain unchanged.
 Palette previews wrap into two columns on phones and four on wider screens.
 
+Profile photos are uploaded in Portfolio settings and saved with that portfolio's
+design, independently of the CV snapshot. Visibility and a 64–144px diameter are
+saved per portfolio. CV previews and exports never read this photo setting.
+Portrait uploads are bounded to 512px; new project images to 1600px, with JPEG
+compression for opaque images and preserved transparency for artwork. Existing
+stored originals are retained. Owner media URLs reuse a 45-minute in-memory cache;
+visitor media is authorized again and signed in one Storage batch request.
+Project images start loading on their first visit to the Projects tab.
+
 ## Executed verification
 
 - Full suite: **358 tests passed**, 05:02, in
