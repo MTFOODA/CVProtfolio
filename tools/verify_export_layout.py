@@ -20,6 +20,7 @@ def main():
         document = pymupdf.open(root / f'{name}.pdf')
         spans = []
         links = set()
+        project_links = []
         for number, page in enumerate(document):
             for block in page.get_text('dict')['blocks']:
                 for line in block.get('lines', []):
@@ -29,10 +30,22 @@ def main():
                         assert -1 <= x0 <= x1 <= page.rect.width + 1, (name, span)
                         assert -1 <= y0 <= y1 <= page.rect.height + 1, (name, span)
             links.update(link['uri'] for link in page.get_links() if 'uri' in link)
+            project_links.extend((number, link) for link in page.get_links()
+                                 if link.get('uri') == 'https://example.test/demo')
             page.get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5)).save(root / f'{name}-{number + 1}.png')
         text = '\n'.join(page.get_text() for page in document)
         assert portfolio not in text and source not in text, name
         assert {source, portfolio} <= links, (name, links)
+        assert project_links, name
+        assert 'Demo' not in text and 'Source' not in text, name
+        for number, link in project_links:
+            rect = link['from']
+            # The clickable demo icon must share the project-heading line,
+            # rather than consuming a row after the project description.
+            assert any(p == number and s['flags'] & 16 and
+                       abs(s['origin'][1] - rect.y1) < 5 and
+                       s['bbox'][0] < rect.x0
+                       for p, s in spans) or name == 'arabic', (name, rect)
         # Actual PDF text, font sizes and positions: dates cannot lose a year
         # to another line and must reserve their own space beside the title.
         for date in ['Oct 2019 - Oct 2024', 'Sep 2026 - Oct 2026']:

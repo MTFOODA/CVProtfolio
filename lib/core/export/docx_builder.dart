@@ -69,6 +69,11 @@ class DocxDocumentBuilder {
     final links = <String, String>{};
     for (final line in lines) {
       if (line.role == 'customImage') continue;
+      for (final link in line.inlineLinks) {
+        if (isNavigableUrl(link.url)) {
+          links.putIfAbsent(link.url, () => 'rIdLink${links.length + 1}');
+        }
+      }
       final url = line.url?.trim() ?? '';
       if (url.isEmpty) continue;
       if (!isNavigableUrl(url)) continue;
@@ -241,8 +246,21 @@ String _paragraph(
   final content = relId != null && isNavigableUrl(url)
       ? '<w:hyperlink r:id="$relId">$run</w:hyperlink>'
       : run;
+  final inline = StringBuffer();
+  for (final link in line.inlineLinks) {
+    final target = links[link.url];
+    if (target == null || !isNavigableUrl(link.url)) continue;
+    final family = link.brand ? contactBrandFontFamily : 'Material Icons';
+    final size = (design.typography.resolvedEntryHeaderFontSize * 2).round();
+    inline.write(
+      '${_run(' ', rtl: rtl)}<w:hyperlink r:id="$target">'
+      '<w:r><w:rPr><w:rFonts w:ascii="$family" w:hAnsi="$family" w:eastAsia="$family" w:cs="$family"/>'
+      '<w:b w:val="0"/><w:bCs w:val="0"/><w:sz w:val="$size"/><w:szCs w:val="$size"/>'
+      '</w:rPr><w:t>${String.fromCharCode(link.codePoint)}</w:t></w:r></w:hyperlink>',
+    );
+  }
 
-  return '<w:p><w:pPr>$props</w:pPr>$content</w:p>';
+  return '<w:p><w:pPr>$props</w:pPr>$content$inline</w:p>';
 }
 
 String _run(

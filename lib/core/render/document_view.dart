@@ -1,7 +1,7 @@
 import '../widgets/profile_image.dart';
 import '../widgets/description_items_editor.dart';
 import '../utils/project_media.dart';
-import '../utils/contact_links.dart';
+import '../utils/project_links.dart';
 import '../design/entry_heading.dart';
 
 import 'package:flutter/material.dart';
@@ -817,6 +817,7 @@ class _Entry extends StatelessWidget {
     this.summary = '',
     this.metadataColor = const Color(0xff52606d),
     this.extra = const [],
+    this.titleLinks = const [],
     this.lines = const [],
     this.descriptionItems = const [],
     required this.bodyStyle,
@@ -831,6 +832,7 @@ class _Entry extends StatelessWidget {
   final String summary;
   final Color metadataColor;
   final List<Widget> extra;
+  final List<ProjectHeadingLink> titleLinks;
   final List<String> lines;
   final List<DescriptionItem> descriptionItems;
   final TextStyle bodyStyle;
@@ -845,6 +847,7 @@ class _Entry extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _EntryHeading(
+          links: titleLinks,
           metadataColor: metadataColor,
           title: title,
           meta: meta,
@@ -875,11 +878,13 @@ class _EntryHeading extends StatelessWidget {
     required this.meta,
     this.organization = '',
     this.metadataColor = const Color(0xff52606d),
+    this.links = const [],
     required this.bodyStyle,
     required this.typography,
     required this.presentation,
   });
   final String title, meta, organization;
+  final List<ProjectHeadingLink> links;
   final Color metadataColor;
   final TextStyle bodyStyle;
   final TypographyConfig typography;
@@ -901,7 +906,24 @@ class _EntryHeading extends StatelessWidget {
       fontSize: typography.resolvedDateFontSize,
       color: metadataColor,
     );
-    final heading = Text(content.title, style: titleStyle);
+    final heading = links.isEmpty
+        ? Text(content.title, style: titleStyle)
+        : Text.rich(
+            TextSpan(
+              text: content.title,
+              children: [
+                for (final link in links) ...[
+                  const TextSpan(text: '\u00a0'),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: _ProjectTitleLink(link: link, style: titleStyle),
+                  ),
+                ],
+              ],
+            ),
+            style: titleStyle,
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -966,45 +988,44 @@ class _EntryHeading extends StatelessWidget {
   }
 }
 
-class _ProjectLinks extends StatelessWidget {
-  const _ProjectLinks({required this.project, required this.style});
-  final ProjectEntry project;
+class _ProjectTitleLink extends StatelessWidget {
+  const _ProjectTitleLink({required this.link, required this.style});
+  final ProjectHeadingLink link;
   final TextStyle style;
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 12,
-    runSpacing: 4,
-    children: [
-      for (final link in [
-        ('Demo', project.demoUrl),
-        ('Source', project.sourceUrl),
-        ('Website', project.websiteUrl),
-      ])
-        if (contactWebUrl(link.$2) case final String url)
-          Semantics(
-            link: true,
-            child: InkWell(
-              onTap: () async {
-                await launchUrl(
-                  Uri.parse(url),
-                  mode: LaunchMode.externalApplication,
-                );
-              },
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    const IconData(0xe157, fontFamily: 'CvContactIcons'),
-                    size: style.fontSize ?? 12,
-                    color: style.color,
-                  ),
-                  const SizedBox(width: 3),
-                  Text(link.$1, style: style),
-                ],
-              ),
-            ),
-          ),
-    ],
+  Widget build(BuildContext context) => Semantics(
+    link: true,
+    label: context.ui(link.label),
+    child: Tooltip(
+      message: context.ui(link.label),
+      child: InkWell(
+        onTap: () async {
+          var opened = false;
+          try {
+            opened = await launchUrl(
+              Uri.parse(link.url),
+              mode: LaunchMode.externalApplication,
+            );
+          } catch (_) {
+            /* Keep failed launches in the current CV. */
+          }
+          if (!opened && context.mounted) {
+            ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+              SnackBar(content: Text(context.tr('errorGeneric'))),
+            );
+          }
+        },
+        child: Icon(
+          switch (link.label) {
+            'Source' => const IconData(0xf09b, fontFamily: 'CvBrandIcons'),
+            'Website' => const IconData(0xe894, fontFamily: 'CvContactIcons'),
+            _ => const IconData(0xe157, fontFamily: 'CvContactIcons'),
+          },
+          size: style.fontSize ?? 12,
+          color: style.color,
+        ),
+      ),
+    ),
   );
 }
 
@@ -1134,6 +1155,7 @@ class _ProjectSection extends StatelessWidget {
   }
 
   Widget _flat(BuildContext context, ProjectEntry p) => _Entry(
+    titleLinks: projectHeadingLinks(p),
     metadataColor: metadataColor,
     title: p.title ?? '',
     meta: p.dateRange.format(),
@@ -1150,10 +1172,6 @@ class _ProjectSection extends StatelessWidget {
           p.technologies.join(', '),
           style: bodyStyle.copyWith(color: metadataColor),
         ),
-      _ProjectLinks(
-        project: p,
-        style: bodyStyle.copyWith(color: metadataColor),
-      ),
     ],
   );
 }
@@ -1206,6 +1224,7 @@ class _ProjectCard extends StatelessWidget {
         if (cover != null && cover.isNotEmpty)
           SizedBox(height: spacing.itemSpacing),
         _EntryHeading(
+          links: projectHeadingLinks(project),
           metadataColor: metadataColor,
           title: project.title ?? '',
           meta: project.dateRange.format(),
@@ -1247,10 +1266,6 @@ class _ProjectCard extends StatelessWidget {
               ],
             ),
           ),
-        _ProjectLinks(
-          project: project,
-          style: bodyStyle.copyWith(color: metadataColor),
-        ),
       ],
     );
   }

@@ -44,7 +44,9 @@ bounded controls; the editor never copies CV profile content into these settings
   engines measure fonts and line spacing differently.
 - Export has one PDF presentation: the saved design. Preview, Save or share,
   Portfolio downloads and public CV downloads use it. Contact display names,
-  icons and project link labels stay compact and clickable; full link targets
+  icons and project link icons stay compact and clickable. Project demo, code
+  and website actions appear inline beside the project name, without a separate
+  link row under the description; full link targets
   remain PDF actions rather than extra visible text. The internal ATS renderer
   remains available to compatibility tests, but is not a separate user choice.
 - The optional advanced control adjusts name letter spacing in all three

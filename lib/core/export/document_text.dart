@@ -11,6 +11,7 @@ import 'package:cv_portfolio_maker/core/domain/enums.dart';
 
 import '../domain/document_models.dart';
 import '../design/entry_heading.dart';
+import '../utils/project_links.dart';
 
 import 'package:cv_portfolio_maker/core/render/resolved_document.dart';
 import 'package:cv_portfolio_maker/core/render/section_titles.dart';
@@ -26,6 +27,7 @@ class DocumentLine {
     this.role,
     this.contactLabel,
     this.boldPrefix,
+    this.inlineLinks = const [],
   });
 
   final String text;
@@ -44,6 +46,7 @@ class DocumentLine {
   final String? role;
   final String? contactLabel;
   final String? boldPrefix;
+  final List<ProjectHeadingLink> inlineLinks;
 
   @override
   String toString() => text;
@@ -284,7 +287,13 @@ void _appendSection(
 
     case SectionKind.projects:
       for (final p in section.projects) {
-        lines.add(DocumentLine(p.title ?? '', level: 2));
+        lines.add(
+          DocumentLine(
+            p.title ?? '',
+            level: 2,
+            inlineLinks: projectHeadingLinks(p),
+          ),
+        );
         if (!p.dateRange.isEmpty) {
           lines.add(
             DocumentLine(
@@ -313,15 +322,6 @@ void _appendSection(
         }
         if (p.technologies.isNotEmpty) {
           lines.add(DocumentLine(p.technologies.join(', '), level: 3));
-        }
-        if (p.demoUrl != null && p.demoUrl!.trim().isNotEmpty) {
-          lines.add(DocumentLine('Demo', level: 3, url: p.demoUrl));
-        }
-        if (p.sourceUrl != null && p.sourceUrl!.trim().isNotEmpty) {
-          lines.add(DocumentLine('Source', level: 3, url: p.sourceUrl));
-        }
-        if ((p.websiteUrl ?? '').trim().isNotEmpty) {
-          lines.add(DocumentLine('Website', level: 3, url: p.websiteUrl));
         }
       }
 

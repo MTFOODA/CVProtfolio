@@ -222,6 +222,16 @@ void main() {
       final rels = readPart(archive, 'word/_rels/document.xml.rels');
 
       expect(xml, contains('<w:hyperlink r:id="rIdLink1">'));
+      final projectParagraph = RegExp(r'<w:p>.*?</w:p>', dotAll: true)
+          .allMatches(xml)
+          .map((match) => match.group(0)!)
+          .singleWhere((paragraph) => paragraph.contains('>Engine<'));
+      final projectLinkId = RegExp(
+        r'<Relationship Id="([^"]+)"[^>]*Target="https://x.test/d"',
+      ).firstMatch(rels)!.group(1)!;
+      expect(projectParagraph, contains('<w:hyperlink r:id="$projectLinkId">'));
+      expect(projectParagraph, contains(String.fromCharCode(0xe157)));
+      expect(xml, isNot(contains('>Demo<')));
       expect(rels, contains('Target="https://x.test/d"'));
       expect(rels, contains('TargetMode="External"'));
     });

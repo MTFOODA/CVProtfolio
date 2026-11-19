@@ -17,6 +17,7 @@ import 'package:cv_portfolio_maker/core/render/document_view.dart';
 import 'package:cv_portfolio_maker/core/render/resolved_document.dart';
 import 'package:cv_portfolio_maker/core/render/section_titles.dart';
 import 'package:cv_portfolio_maker/features/export/export_sheet.dart';
+import 'package:cv_portfolio_maker/core/utils/project_links.dart';
 
 import 'support/arabic_font.dart';
 import 'support/pdf_text.dart';
@@ -163,6 +164,31 @@ UserProfile sampleProfile({bool arabic = false, bool long = false}) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('title links keep valid destinations, avoid duplicate actions and reject unsafe schemes', () {
+    final links = projectHeadingLinks(
+      const ProjectEntry(
+        id: 'links',
+        demoUrl: ' https://example.test/demo ',
+        sourceUrl: 'https://github.com/example/project',
+        websiteUrl: 'https://example.test/demo',
+      ),
+    );
+    expect(links.map((link) => link.label), ['Demo', 'Source']);
+    expect(links.first.url, 'https://example.test/demo');
+    expect(links.last.brand, isTrue);
+    expect(
+      projectHeadingLinks(
+        const ProjectEntry(
+          id: 'unsafe',
+          demoUrl: 'javascript:alert(1)',
+          sourceUrl: 'file:///private',
+          websiteUrl: 'ftp://example.test',
+        ),
+      ),
+      isEmpty,
+    );
+    expect(projectHeadingLinks(const ProjectEntry(id: 'empty')), isEmpty);
+  });
   ResolvedDocument resolve(CvDocument document, UserProfile profile) =>
       ResolvedDocument.resolve(
         document: document,
@@ -265,7 +291,8 @@ void main() {
       expect(text, isNot(contains(portfolioUrl)));
       expect(text, isNot(contains(sourceUrl)));
       expect(latin1.decode(pdf.bytes), contains(sourceUrl));
-      expect(text, contains('Source'));
+      expect(text, isNot(contains('Source')));
+      expect(text, isNot(contains('Demo')));
       if (!spec.$2.isRtl) {
         expect(text, contains('PROFILE'));
         expect(text, contains('Ain Shams University'));
@@ -312,7 +339,22 @@ void main() {
         );
         expect(find.text('PROFILE'), findsOneWidget);
         expect(find.text(sourceUrl), findsNothing);
-        expect(find.text('Source'), findsOneWidget);
+        expect(find.text('Source'), findsNothing);
+        expect(find.text('Demo'), findsNothing);
+        expect(find.byTooltip('Demo'), findsOneWidget);
+        final projectHeading = find.textContaining(
+          'Restaurant Management System 0',
+          findRichText: true,
+        );
+        final demoIcon = find.byTooltip('Demo');
+        expect(
+          tester.getTopLeft(demoIcon).dy,
+          greaterThanOrEqualTo(tester.getTopLeft(projectHeading).dy - 2),
+        );
+        expect(
+          tester.getBottomRight(demoIcon).dy,
+          lessThanOrEqualTo(tester.getBottomRight(projectHeading).dy + 2),
+        );
         final institution = find.text('Ain Shams University');
         final schoolTitle = find.text(
           'Bachelor · Computer and Information Science',
@@ -327,7 +369,10 @@ void main() {
           expect(label.maxLines, 1);
         }
         if (style != 'gallery') {
-          final title = find.text('Restaurant Management System 0');
+          final title = find.textContaining(
+            'Restaurant Management System 0',
+            findRichText: true,
+          );
           final projectDate = find.text('Sep 2026 - Oct 2026');
           expect(
             tester.getTopLeft(projectDate).dx,

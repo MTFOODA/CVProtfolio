@@ -9,6 +9,7 @@ library;
 import 'package:pdf/widgets.dart' as pw;
 
 import '../design/entry_heading.dart';
+import '../utils/project_links.dart';
 
 import 'package:cv_portfolio_maker/core/domain/enums.dart';
 import 'package:cv_portfolio_maker/core/domain/profile_models.dart';
@@ -285,6 +286,7 @@ class SectionRenderer {
     String title,
     String meta, {
     String organization = '',
+    List<ProjectHeadingLink> links = const [],
   }) {
     final content = EntryHeadingContent.resolve(
       title: title,
@@ -297,7 +299,54 @@ class SectionRenderer {
       children: [
         pw.LayoutBuilder(
           builder: (context, constraints) {
-            final heading = _text(content.title, style.entryStyle());
+            final heading = links.isEmpty
+                ? _text(content.title, style.entryStyle())
+                : pw.RichText(
+                    text: pw.TextSpan(
+                      style: style.entryStyle(),
+                      children: [
+                        if (!style.rtl)
+                          pw.TextSpan(text: style.text(content.title)),
+                        for (final link in links) ...[
+                          pw.TextSpan(text: ' '),
+                          pw.TextSpan(
+                            text:
+                                (link.brand
+                                        ? style.fonts.brandFont
+                                        : style.fonts.iconFont) ==
+                                    null
+                                ? '>'
+                                : String.fromCharCode(link.codePoint),
+                            annotation: pw.AnnotationUrl(link.url),
+                            style: pw.TextStyle(
+                              font:
+                                  (link.brand
+                                      ? style.fonts.brandFont
+                                      : style.fonts.iconFont) ??
+                                  style.fonts.regular,
+                              fontNormal:
+                                  (link.brand
+                                      ? style.fonts.brandFont
+                                      : style.fonts.iconFont) ??
+                                  style.fonts.regular,
+                              fontBold:
+                                  (link.brand
+                                      ? style.fonts.brandFont
+                                      : style.fonts.iconFont) ??
+                                  style.fonts.regular,
+                              fontWeight: pw.FontWeight.normal,
+                              fontSize:
+                                  style.typography.resolvedEntryHeaderFontSize,
+                              color: style.bodyColor,
+                            ),
+                          ),
+                        ],
+                        if (style.rtl)
+                          pw.TextSpan(text: ' ${style.text(content.title)}'),
+                      ],
+                    ),
+                    textAlign: style.bodyAlign,
+                  );
             if (content.metadata.isEmpty) return heading;
             if (style.presentation.dateLocationPosition != 'right') {
               return pw.Column(
@@ -498,7 +547,11 @@ class SectionRenderer {
         ),
         pw.SizedBox(height: style.spacing.itemSpacing),
       ],
-      _entryHeader(p.title ?? '', p.dateRange.format()),
+      _entryHeader(
+        p.title ?? '',
+        p.dateRange.format(),
+        links: projectHeadingLinks(p),
+      ),
       _optional(p.summary, style.style()),
       ...p.resolvedDescriptions
           .where((d) => d.text.trim().isNotEmpty)
@@ -533,21 +586,6 @@ class SectionRenderer {
                   ],
                 ),
               ),
-      _fullWidth(
-        pw.Wrap(
-          alignment: style.rtl ? pw.WrapAlignment.end : pw.WrapAlignment.start,
-          spacing: 12,
-          runSpacing: 4,
-          children: [
-            for (final link in [
-              ('Demo', p.demoUrl),
-              ('Source', p.sourceUrl),
-              ('Website', p.websiteUrl),
-            ])
-              if (_linkLine(link.$1, link.$2) case final pw.Widget item) item,
-          ],
-        ),
-      ),
     ];
     return _EntryBlock([
       ...children.whereType<pw.Widget>(),
