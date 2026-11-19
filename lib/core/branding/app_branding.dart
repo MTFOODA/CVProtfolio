@@ -16,6 +16,10 @@ const String kAppDisplayName = 'CV & Portfolio Builder';
 /// Editable source: assets/branding/brand_mark.svg; tools/create_identity.py.
 const String kAppLogoAsset = 'assets/branding/app_logo.png';
 
+/// Same CV mark on white for the portfolio's row of contact icons.
+const String kPortfolioLinkLogoAsset =
+    'assets/branding/portfolio_link_logo.png';
+
 /// Public developer credits and official distribution destinations.
 const String kDeveloperName = 'MOHAMED TAREK FOODA';
 const String kDeveloperGitHubUrl = 'https://github.com/MTFOODA';

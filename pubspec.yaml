@@ -110,6 +110,7 @@ flutter:
     # 1024 px icon masters are build-time inputs for `flutter_launcher_icons`
     # and would only add weight to the app.
     - assets/branding/app_logo.png
+    - assets/branding/portfolio_link_logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

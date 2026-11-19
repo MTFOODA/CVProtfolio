@@ -357,7 +357,7 @@ void main() {
       final logo = tester.widget<Image>(
         find.descendant(of: icon, matching: find.byType(Image)),
       );
-      expect((logo.image as AssetImage).assetName, kAppLogoAsset);
+      expect((logo.image as AssetImage).assetName, kPortfolioLinkLogoAsset);
       expect(
         find.ancestor(of: icon, matching: find.byType(AppHeroSurface)),
         findsOneWidget,

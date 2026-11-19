@@ -119,7 +119,7 @@ class PortfolioContactActions extends StatelessWidget {
               onPressed: () => onOpen(action.uri),
               icon: action.icon == AppIcons.portfolio
                   ? Image.asset(
-                      kAppLogoAsset,
+                      kPortfolioLinkLogoAsset,
                       width: 26,
                       height: 26,
                       excludeFromSemantics: true,

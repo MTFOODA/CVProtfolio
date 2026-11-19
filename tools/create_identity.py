@@ -62,16 +62,16 @@ def outline():
     return points
 
 
-def render(ratio=1, size=1024, rounded=False):
+def render(ratio=1, size=1024, rounded=False, background=INK):
     # Launchers apply their own masks to full-bleed masters. In-app artwork
     # instead has transparent rounded corners, matching the approved tile.
     canvas = size * 4
     image = Image.new('RGBA', (canvas, canvas), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     if rounded:
-        draw.rounded_rectangle((0, 0, canvas, canvas), radius=canvas * .21875, fill=INK)
+        draw.rounded_rectangle((0, 0, canvas, canvas), radius=canvas * .21875, fill=background)
     else:
-        draw.rectangle((0, 0, canvas, canvas), fill=INK)
+        draw.rectangle((0, 0, canvas, canvas), fill=background)
     factor = canvas / 512
     points = [((256 + (x - 256) * ratio) * factor,
                (256 + (y - 256) * ratio) * factor) for x, y in outline()]
@@ -92,6 +92,7 @@ def main():
     for name, ratio in [('app_icon', 1), ('app_icon_foreground', .70), ('app_icon_web', .82)]:
         render(ratio).convert('RGB').save(OUT / f'{name}.png', optimize=True)
     render(size=512, rounded=True).save(OUT / 'app_logo.png', optimize=True)
+    render(size=256, rounded=True, background='#FFFFFF').save(OUT / 'portfolio_link_logo.png', optimize=True)
 
     card = Image.new('RGB', (1200, 630), PAPER)
     tile = render(size=260, rounded=True)
