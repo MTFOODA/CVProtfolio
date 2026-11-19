@@ -21,6 +21,13 @@ class PortfolioDescriptionBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
+    // Copied CV text often contains hard wraps for a narrow document column.
+    // Reflow those lines for this screen, retaining intentional paragraphs.
+    final text = item.text
+        .replaceAll('\r\n', '\n')
+        .split(RegExp(r'\n[ \t]*\n+'))
+        .map((paragraph) => paragraph.replaceAll(RegExp(r'\s+'), ' ').trim())
+        .join('\n\n');
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -47,7 +54,11 @@ class PortfolioDescriptionBox extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
-          Text(item.text, style: const TextStyle(fontSize: 14, height: 1.65)),
+          Text(
+            text,
+            textAlign: TextAlign.justify,
+            style: const TextStyle(fontSize: 14, height: 1.65),
+          ),
         ],
       ),
     );

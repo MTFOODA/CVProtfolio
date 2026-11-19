@@ -65,7 +65,7 @@ void main() {
                         : 'ATM Onboarding & Configuration',
                     text: arabic
                         ? 'إدارة دورة تهيئة الأنظمة وضبط الموارد ومتابعة الأداء لضمان استقرار الخدمات.'
-                        : 'Manage the full lifecycle of deployment by configuring resources, network layers, and operational parameters.',
+                        : 'Manage the full lifecycle of deployment by\nconfiguring and provisioning resources across application servers, network layers, and operational parameters. Coordinate production changes with technical teams and validate service availability throughout the deployment process.',
                   ),
                   DescriptionItem(
                     text: arabic
@@ -152,6 +152,17 @@ void main() {
           }
           final boxes = find.byType(PortfolioDescriptionBox);
           expect(boxes, findsNWidgets(4));
+          if (!arabic) {
+            expect(
+              find.textContaining('by configuring and provisioning'),
+              findsOneWidget,
+            );
+            // Reflow is presentation-only; saved CV text keeps its original wraps.
+            expect(
+              profile.experiences.first.descriptionItems!.first.text,
+              contains('by\nconfiguring'),
+            );
+          }
           final rects = [
             for (var i = 0; i < 4; i++) tester.getRect(boxes.at(i)),
           ];
