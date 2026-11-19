@@ -1,7 +1,6 @@
-import '../../core/design/app_icons.dart';
+import '../about/about_app_screen.dart';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/design/portfolio_themes.dart';
 import '../../core/widgets/app_motion.dart';
@@ -59,45 +58,40 @@ class _PublicPortfolioViewState extends State<PublicPortfolioView> {
         appBar: AppBar(
           title: const UiText('My Portfolio'),
           actions: [
-            IconButton(
-              key: const ValueKey('portfolio-app-about'),
-              tooltip: context.tr('aboutApp'),
-              onPressed: () => context.push(
-                Uri(
-                  path: '/about',
-                  queryParameters: {
-                    'theme': portfolioThemeById(document.design.templateId).id,
-                  },
-                ).toString(),
-              ),
-              icon: const Icon(AppIcons.infoOutline),
+            AppInfoButton(
+              buttonKey: const ValueKey('portfolio-app-about'),
+              portfolioThemeId: portfolioThemeById(document.design.templateId)
+                  .id,
             ),
           ],
         ),
         body: SafeArea(
           top: false,
-          child: AppContentTransition(
-            identity: _page,
-            child: IndexedStack(
-              index: pages.indexOf(_page),
-              children: [
-                for (final page in pages)
-                  KeyedSubtree(
-                    key: ValueKey(page),
-                    child: PortfolioPageView(
-                      page: page,
-                      content: content,
-                      active: _page == page,
-                      editable: false,
-                      showDownload: false,
-                      onEdit: () {},
-                      onDownload: widget.onDownload,
-                      onOpen: widget.onOpen,
-                      onWork: () =>
-                          setState(() => _page = PortfolioPage.projects),
+          child: PortfolioBackdrop(
+            palette: portfolioThemeById(document.design.templateId),
+            child: AppContentTransition(
+              identity: _page,
+              child: IndexedStack(
+                index: pages.indexOf(_page),
+                children: [
+                  for (final page in pages)
+                    KeyedSubtree(
+                      key: ValueKey(page),
+                      child: PortfolioPageView(
+                        page: page,
+                        content: content,
+                        active: _page == page,
+                        editable: false,
+                        showDownload: false,
+                        onEdit: () {},
+                        onDownload: widget.onDownload,
+                        onOpen: widget.onOpen,
+                        onWork: () =>
+                            setState(() => _page = PortfolioPage.projects),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

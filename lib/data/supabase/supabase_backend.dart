@@ -8,6 +8,8 @@
 /// side Edge Functions.
 library;
 
+import 'package:cv_portfolio_maker/data/portfolio_documents.dart';
+
 import 'dart:typed_data';
 
 import '../../core/domain/enums.dart';
@@ -168,12 +170,25 @@ class SupabaseBackend
         .upsert(payload)
         .select()
         .single();
-    return CvDocument.fromJson(Map<String, dynamic>.from(row));
+    final saved = CvDocument.fromJson(Map<String, dynamic>.from(row));
+    if (saved.type == DocumentType.cv) await syncCvPortfolio(this, saved);
+    return saved;
   }
 
   @override
   Future<void> deleteDocument(String documentId, String userId) async {
     _requireUserId;
+    final paired = (await listDocuments(userId)).where(
+      (d) =>
+          d.type == DocumentType.portfolio && d.design.sourceCvId == documentId,
+    );
+    for (final portfolio in paired) {
+      await _client
+          .from(Tables.documents)
+          .delete()
+          .eq('id', portfolio.id)
+          .eq('owner_id', userId);
+    }
     await _client
         .from(Tables.documents)
         .delete()
@@ -327,7 +342,7 @@ class SupabaseBackend
       Map<String, dynamic>.from(map['document']),
     );
     var profile =
-        (document.type == DocumentType.cv ? document.profileSnapshot : null) ??
+        document.profileSnapshot ??
         UserProfile.fromJson(Map<String, dynamic>.from(map['profile']));
     final hasStoredMedia =
         [
@@ -385,7 +400,7 @@ class SupabaseBackend
         // widgets report unavailable playback; storage policies stay private.
       }
     }
-    if (document.type == DocumentType.cv && document.profileSnapshot != null) {
+    if (document.profileSnapshot != null) {
       document = document.copyWith(profileSnapshot: profile);
     }
     // Only a successfully resolved share grants a view. Failed passwords,

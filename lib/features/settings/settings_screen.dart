@@ -4,7 +4,6 @@ import '../../core/design/app_icons.dart';
 import 'package:cv_portfolio_maker/core/l10n/ui_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:cv_portfolio_maker/app/providers.dart';
 import 'package:cv_portfolio_maker/app/session.dart';
@@ -31,43 +30,14 @@ class SettingsScreen extends ConsumerWidget {
     final online = ref.watch(appConfigProvider).isSupabaseConfigured;
 
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr('settings'))),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: Text(context.tr('settings')),
+      ),
       body: AppPageBody(
         child: ListView(
           padding: AppSpacing.pagePadding(context),
           children: [
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final item in <(String, IconData, String)>[
-                    ('profileDetails', AppIcons.person, '/profile'),
-                    ('templates', AppIcons.dashboard, '/templates'),
-                    (
-                      'certificates',
-                      AppIcons.certificate,
-                      '/settings/credentials/certificates',
-                    ),
-                    (
-                      'courses',
-                      AppIcons.courses,
-                      '/settings/credentials/courses',
-                    ),
-                  ])
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(
-                        end: AppSpacing.sm,
-                      ),
-                      child: ActionChip(
-                        avatar: Icon(item.$2, size: 18),
-                        label: Text(context.tr(item.$1)),
-                        onPressed: () => context.push(item.$3),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
             Card(
               child: ExpansionTile(
                 key: ValueKey('portfolio-settings:$portfolioExpanded'),

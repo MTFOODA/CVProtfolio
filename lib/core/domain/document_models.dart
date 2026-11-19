@@ -613,6 +613,7 @@ class DocumentDesign {
     this.sections = const <SectionConfig>[],
     this.templateId = 'minimal',
     this.isRtl = false,
+    this.sourceCvId,
   });
 
   final LayoutMode layoutMode;
@@ -627,6 +628,9 @@ class DocumentDesign {
   final String templateId;
   final bool isRtl;
 
+  /// CV whose saved content supplies this portfolio.
+  final String? sourceCvId;
+
   DocumentDesign copyWith({
     LayoutMode? layoutMode,
     TypographyConfig? typography,
@@ -637,6 +641,7 @@ class DocumentDesign {
     List<SectionConfig>? sections,
     String? templateId,
     bool? isRtl,
+    String? sourceCvId,
   }) => DocumentDesign(
     layoutMode: layoutMode ?? this.layoutMode,
     typography: typography ?? this.typography,
@@ -647,6 +652,7 @@ class DocumentDesign {
     sections: sections ?? this.sections,
     templateId: templateId ?? this.templateId,
     isRtl: isRtl ?? this.isRtl,
+    sourceCvId: sourceCvId ?? this.sourceCvId,
   );
 
   factory DocumentDesign.fromJson(Map<String, dynamic> json) {
@@ -686,6 +692,7 @@ class DocumentDesign {
       sections: sectionsOf(json['sections']),
       templateId: '${json['templateId'] ?? 'minimal'}',
       isRtl: json['isRtl'] as bool? ?? false,
+      sourceCvId: json['sourceCvId'] as String?,
     );
   }
 
@@ -699,6 +706,7 @@ class DocumentDesign {
     'sections': sections.map((s) => s.toJson()).toList(),
     'templateId': templateId,
     'isRtl': isRtl,
+    if (sourceCvId != null) 'sourceCvId': sourceCvId,
   };
 }
 

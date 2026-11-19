@@ -21,7 +21,6 @@ import 'package:cv_portfolio_maker/features/editor/document_editor_screen.dart';
 import 'package:cv_portfolio_maker/features/cv_builder/cv_builder_wizard_screen.dart';
 import 'package:cv_portfolio_maker/features/portfolio/portfolio_builder_screen.dart';
 import 'package:cv_portfolio_maker/features/profile/profile_screen.dart';
-import 'package:cv_portfolio_maker/features/settings/settings_screen.dart';
 import 'package:cv_portfolio_maker/features/settings/credentials_screen.dart';
 import 'package:cv_portfolio_maker/features/templates/templates_screen.dart';
 import 'package:cv_portfolio_maker/features/viewer/public_viewer_screen.dart';
@@ -115,9 +114,13 @@ GoRouter buildRouter({
           ),
           GoRoute(
             path: 'settings',
-            builder: (context, state) => SettingsScreen(
-              portfolioExpanded:
-                  state.uri.queryParameters['section'] == 'portfolio',
+            builder: (context, state) => accountScreen(
+              (owner) => DashboardScreen(
+                key: ValueKey('settings:$owner'),
+                settingsRoute: true,
+                portfolioExpanded:
+                    state.uri.queryParameters['section'] == 'portfolio',
+              ),
             ),
             routes: [
               GoRoute(

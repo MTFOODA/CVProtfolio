@@ -4,6 +4,8 @@
 /// are still enforced here so the same security expectations hold locally.
 library;
 
+import 'package:cv_portfolio_maker/data/portfolio_documents.dart';
+
 import 'dart:io';
 
 import '../../core/domain/enums.dart';
@@ -126,17 +128,28 @@ class LocalBackend
       documents.add(json);
     }
     await _store.writeList(_documentScope(document.ownerId), documents);
+    if (document.type == DocumentType.cv) await syncCvPortfolio(this, document);
     return document;
   }
 
   @override
   Future<void> deleteDocument(String documentId, String userId) async {
     final documents = await _store.readList(_documentScope(userId));
-    documents.removeWhere((d) => d['id'] == documentId);
+    final pairedIds = documents
+        .map(CvDocument.fromJson)
+        .where(
+          (d) =>
+              d.type == DocumentType.portfolio &&
+              d.design.sourceCvId == documentId,
+        )
+        .map((d) => d.id)
+        .toSet();
+    pairedIds.add(documentId);
+    documents.removeWhere((d) => pairedIds.contains(d['id']));
     await _store.writeList(_documentScope(userId), documents);
 
     final shares = await _store.readList(_shareKey);
-    shares.removeWhere((s) => s['documentId'] == documentId);
+    shares.removeWhere((s) => pairedIds.contains(s['documentId']));
     await _store.writeList(_shareKey, shares);
   }
 
@@ -288,7 +301,10 @@ class LocalBackend
     if (profileMap == null) {
       throw const ShareNotFoundException('Profile missing');
     }
-    return (document: document, profile: UserProfile.fromJson(profileMap));
+    return (
+      document: document,
+      profile: document.profileSnapshot ?? UserProfile.fromJson(profileMap),
+    );
   }
 
   /// Locates a document across all owners (public resolution only).

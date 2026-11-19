@@ -121,7 +121,9 @@ void main() {
             .copyWith(updatedAtIso: () => '2025-01-01T00:00:00.000Z'),
       );
 
-      final docs = await backend.listDocuments('user-1');
+      final docs = (await backend.listDocuments('user-1'))
+          .where((d) => d.type == DocumentType.cv)
+          .toList();
       expect(docs.map((d) => d.id), ['new', 'old']);
     });
 
@@ -129,7 +131,9 @@ void main() {
       await backend.saveDocument(makeDoc(id: 'd1', title: 'One'));
       await backend.saveDocument(makeDoc(id: 'd1', title: 'Two'));
 
-      final docs = await backend.listDocuments('user-1');
+      final docs = (await backend.listDocuments('user-1'))
+          .where((d) => d.type == DocumentType.cv)
+          .toList();
       expect(docs.length, 1);
       expect(docs.single.title, 'Two');
     });

@@ -466,6 +466,12 @@ const Map<String, String> enStrings = {
   'entryImage': 'Entry image',
   'removeImage': 'Remove image',
   'sharePublished': 'Portfolio link enabled',
+  'aboutAppDescription': 'Enter your details once to create both your CV and portfolio. Customize your CV, share your portfolio, and keep each CV and its portfolio separate.',
+  'portfolioForCv': 'Portfolio for CV',
+  'portfolioVisibilityHint':
+      'Show or temporarily hide the sections you have added.',
+  'portfolioNoSections':
+      'Add content in your CV to control its visibility here.',
   'aboutApp': 'About the app',
   'sectionCategory': 'Section type',
   'portfolioExperience': 'Experience',

@@ -1,4 +1,4 @@
-import 'package:cv_portfolio_maker/core/design/app_icons.dart';
+import 'package:cv_portfolio_maker/features/settings/settings_screen.dart';
 
 import 'dart:io';
 import 'dart:async';
@@ -25,7 +25,6 @@ import 'package:cv_portfolio_maker/data/local/local_store.dart';
 import 'package:cv_portfolio_maker/features/cv_builder/cv_builder_wizard_screen.dart';
 import 'package:cv_portfolio_maker/features/editor/document_editor_screen.dart';
 import 'package:cv_portfolio_maker/features/cv_design/cv_design_settings_screen.dart';
-import 'package:cv_portfolio_maker/features/portfolio/portfolio_builder_screen.dart';
 import 'package:cv_portfolio_maker/features/portfolio/public_portfolio_view.dart';
 import 'package:cv_portfolio_maker/features/profile/profile_screen.dart';
 import 'package:cv_portfolio_maker/features/settings/credentials_screen.dart';
@@ -269,7 +268,9 @@ void main() {
       await tester.tap(find.text('Duplicate'));
       await settle(tester);
       final docs = await tester.runAsync(() => backend.listDocuments('owner'));
-      final copy = docs!.singleWhere((d) => d.title == 'Grace Hopper (copy)');
+      final copy = docs!.singleWhere(
+        (d) => d.type == DocumentType.cv && d.title == 'Grace Hopper (copy)',
+      );
       expect(copy.profileSnapshot!.details.fullName, 'Grace Hopper');
       expect(copy.includedProjectIds, ['selected-project']);
       expect(copy.allowPdfDownload, isFalse);
@@ -627,7 +628,7 @@ void main() {
   );
 
   testWidgets(
-    'portfolio settings deep links and global credential shortcuts stay reachable',
+    'settings entry points use the same navigation shell and removed shortcuts stay absent',
     (tester) async {
       final signed = ValueNotifier(true);
       final router = buildRouter(
@@ -658,32 +659,30 @@ void main() {
       expect(find.text('Color Theme'), findsOneWidget);
       router.go('/settings');
       await settle(tester);
-      for (final icon in [AppIcons.certificate, AppIcons.courses]) {
-        final shortcut = find.widgetWithIcon(ActionChip, icon);
-        await tester.ensureVisible(shortcut);
+      expect(find.byType(ActionChip), findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+      await tester.tap(find.byType(NavigationDestination).first);
+      await settle(tester);
+      expect(router.routeInformationProvider.value.uri.path, '/');
+      expect(find.byKey(const ValueKey('home-app-about')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('home-settings')));
+      await settle(tester);
+      expect(router.routeInformationProvider.value.uri.path, '/settings');
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(ActionChip), findsNothing);
+      // Credential editing remains reachable by its existing direct routes.
+      for (final kind in ['certificates', 'courses']) {
+        router.push('/settings/credentials/$kind');
         await settle(tester);
-        await tester.tap(shortcut);
-        await settle(tester);
-        if (icon == AppIcons.customize) {
-          expect(
-            tester
-                .widget<PortfolioBuilderScreen>(
-                  find.byType(PortfolioBuilderScreen),
-                )
-                .settingsOnly,
-            isTrue,
-          );
-        } else {
-          expect(
-            tester
-                .widget<CredentialsScreen>(find.byType(CredentialsScreen))
-                .courses,
-            icon == AppIcons.courses,
-          );
-        }
+        expect(
+          tester
+              .widget<CredentialsScreen>(find.byType(CredentialsScreen))
+              .courses,
+          kind == 'courses',
+        );
         router.pop();
         await settle(tester);
-        expect(router.routeInformationProvider.value.uri.path, '/settings');
       }
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

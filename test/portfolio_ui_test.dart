@@ -3,6 +3,9 @@ import 'package:cv_portfolio_maker/features/settings/settings_screen.dart';
 import 'package:cv_portfolio_maker/features/portfolio/portfolio_settings_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cv_portfolio_maker/core/theme/app_theme.dart';
+import 'package:cv_portfolio_maker/core/widgets/app_surfaces.dart';
+import 'package:cv_portfolio_maker/core/design/portfolio_themes.dart';
+import 'package:cv_portfolio_maker/features/portfolio/portfolio_theme.dart';
 
 import 'dart:io';
 import 'dart:async';
@@ -88,6 +91,18 @@ void main() {
           );
         await loader.load();
       }
+    }
+  });
+  setUpAll(() async {
+    for (final entry in {
+      'inter': 'Inter-Regular.ttf',
+      'Roboto': 'Roboto-Regular.ttf',
+      'tajawal': 'Tajawal-Regular.ttf',
+      'CvBrandIcons': 'ContactBrands-Regular.ttf',
+    }.entries) {
+      await (FontLoader(
+        entry.key,
+      )..addFont(rootBundle.load('assets/google_fonts/${entry.value}'))).load();
     }
   });
   late Directory dir;
@@ -229,8 +244,10 @@ void main() {
         child: MaterialApp.router(
           theme: AppTheme.light(),
           routerConfig: router,
-          builder: (context, child) =>
-              RepaintBoundary(key: screenshotKey, child: child!),
+          builder: (context, child) => RepaintBoundary(
+            key: screenshotKey,
+            child: AppBackdrop(child: child!),
+          ),
         ),
       ),
     );
@@ -314,6 +331,97 @@ void main() {
       await screenshot(tester, 'settings');
       await tab(tester, 'Projects');
       expect(tester.state<ScrollableState>(scroll).position.pixels, offset);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'CV picker selects independent content and palette colors only the canvas',
+    (tester) async {
+      await tester.runAsync(() async {
+        for (final id in ['mobile', 'backend']) {
+          await local.saveDocument(
+            CvDocument(
+              id: id,
+              ownerId: 'owner',
+              title: '$id CV',
+              profileSnapshot: UserProfile(
+                id: 'owner',
+                details: ProfileDetails(
+                  fullName: '$id developer',
+                  summary: 'About $id work',
+                ),
+                projects: [ProjectEntry(id: id, title: '$id project')],
+              ),
+            ),
+          );
+        }
+      });
+      container.read(portfolioCvIdProvider.notifier).select('mobile');
+      await mount(tester);
+      expect(
+        find.textContaining('mobile developer', findRichText: true),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('portfolio-cv:mobile')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('backend CV').last);
+      await settle(tester);
+      expect(
+        find.textContaining('backend developer', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('mobile developer', findRichText: true),
+        findsNothing,
+      );
+      expect(
+        container.read(portfolioProvider).value!.design.sourceCvId,
+        'backend',
+      );
+      final base = AppTheme.light();
+      for (final palette in portfolioThemes) {
+        final themed = portfolioUiTheme(base, palette);
+        expect(themed.colorScheme, base.colorScheme);
+        expect(themed.textTheme, base.textTheme);
+        expect(themed.cardTheme, base.cardTheme);
+      }
+      await tab(tester, 'Settings');
+      expect(find.byType(ReorderableDragStartListener), findsNothing);
+      expect(find.byTooltip('Hide Education'), findsNothing);
+      final projects = find.byTooltip('Hide Projects');
+      await tester.ensureVisible(projects);
+      await tester.tap(projects);
+      await settle(tester);
+      expect(find.byTooltip('Show Projects'), findsOneWidget);
+      await tester.tap(find.byTooltip('Show Projects'));
+      await settle(tester);
+      await tester.ensureVisible(find.text('Rose'));
+      await settle(tester);
+      await tester.tap(find.text('Rose'));
+      await settle(tester);
+      expect(
+        container.read(portfolioProvider).value!.design.templateId,
+        'rose',
+      );
+      final settingsScroll = find
+          .descendant(
+            of: find.byType(SettingsScreen),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      tester.state<ScrollableState>(settingsScroll).position.jumpTo(0);
+      await settle(tester);
+      await screenshot(tester, 'settings-cv-picker-phone');
+      tester.view.physicalSize = const Size(1440, 1000);
+      await tester.pumpAndSettle();
+      await screenshot(tester, 'settings-cv-picker-desktop');
+      await tab(tester, 'About');
+      expect(
+        find.byKey(const ValueKey('portfolio-background:rose')),
+        findsOneWidget,
+      );
+      await screenshot(tester, 'portfolio-rose-desktop');
       expect(tester.takeException(), isNull);
     },
   );
@@ -574,7 +682,11 @@ void main() {
       await settle(tester);
       expect(find.text('Color Theme'), findsOneWidget);
       expect(find.byType(SettingsScreen), findsOneWidget);
-      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(ActionChip), findsNothing);
+      expect(find.byType(ReorderableDragStartListener), findsNothing);
+      expect(find.byTooltip('Move Projects up'), findsNothing);
+      expect(find.byTooltip('Hide Languages'), findsNothing);
       expect(signedIn.value, isTrue);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());

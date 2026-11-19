@@ -85,9 +85,10 @@ test('legacy private-bucket URLs are refreshed without trusting foreign origins 
   assert.ok(paths.some(path => path.endsWith('/owner/cover%20image.png')));
 });
 
-test('CV signing uses the saved snapshot and never signs unrelated live profile media', async () => {
+for (const documentType of ['cv', 'portfolio']) {
+test(`${documentType} signing uses its saved snapshot and excludes other CV media`, async () => {
   const shared = structuredClone(payload);
-  shared.document.type = 'cv';
+  shared.document.type = documentType;
   shared.document.profileSnapshot = {id:'owner', projects:[{id:'p', media:['owner/snapshot.png']}]};
   const calls = [];
   const response = await handleShareMedia(request(), env, async url => {
@@ -98,6 +99,8 @@ test('CV signing uses the saved snapshot and never signs unrelated live profile 
   assert.deepEqual(Object.keys((await response.json()).urls), ['owner/snapshot.png']);
   assert.equal(calls.length, 2);
 });
+}
+
 
 
 test('custom entry images require visible sections/entries and owner paths', async () => {

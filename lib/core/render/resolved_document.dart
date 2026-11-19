@@ -138,7 +138,7 @@ class ResolvedDocument {
     required String Function(SectionKind) defaultTitle,
     bool atsFriendly = false,
   }) {
-    if (document.type == DocumentType.cv && document.profileSnapshot != null) {
+    if (document.profileSnapshot != null) {
       profile = document.profileSnapshot!;
     }
     final design = withProfileCustomSections(document.design, profile);

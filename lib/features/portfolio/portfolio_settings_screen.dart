@@ -1,3 +1,4 @@
+import '../../core/domain/profile_models.dart';
 import '../../core/design/app_icons.dart';
 import '../../core/theme/app_tokens.dart';
 
@@ -26,8 +27,10 @@ class PortfolioSettingsTab extends StatelessWidget {
     required this.onCopy,
     this.embedded = false,
     this.customSectionTitles = const {},
+    this.profile,
   });
   final bool embedded;
+  final UserProfile? profile;
   final Map<String, String> customSectionTitles;
   final CvDocument document;
   final bool busy;
@@ -40,15 +43,19 @@ class PortfolioSettingsTab extends StatelessWidget {
   void _sections(List<SectionConfig> sections) => onSave(
     document.copyWith(design: document.design.copyWith(sections: sections)),
   );
-  void _move(int from, int to) {
-    final sections = [...document.design.sections];
-    sections.insert(to, sections.removeAt(from));
-    _sections(sections);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final sections = document.design.sections;
+    final sections = document.design.sections
+        .where(
+          (section) =>
+              profile == null ||
+              portfolioSectionHasContent(
+                section,
+                profile!,
+                document.includedProjectIds,
+              ),
+        )
+        .toList();
     final protected = document.accessPasswordHash != null;
     final published =
         document.published && document.shareMode == ShareMode.publicLink;
@@ -77,9 +84,6 @@ class PortfolioSettingsTab extends StatelessWidget {
                               document.copyWith(
                                 design: document.design.copyWith(
                                   templateId: theme.id,
-                                  colors: document.design.colors.copyWith(
-                                    accent: theme.accent.toARGB32(),
-                                  ),
                                 ),
                               ),
                             ),
@@ -142,7 +146,7 @@ class PortfolioSettingsTab extends StatelessWidget {
         Padding(
           padding: EdgeInsets.only(bottom: 12),
           child: UiText(
-            'Drag to reorder, or use the arrow controls. Changes affect presentation only.',
+            context.tr('portfolioVisibilityHint'),
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 12,
@@ -150,112 +154,83 @@ class PortfolioSettingsTab extends StatelessWidget {
             ),
           ),
         ),
-        PortfolioCard(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
-            itemCount: sections.length,
-            onReorderItem: (from, to) {
-              if (!busy) _move(from, to);
-            },
-            itemBuilder: (context, index) {
-              final section = sections[index];
-              final label = switch (section.kind) {
-                SectionKind.profile => 'Introduction',
-                SectionKind.personalDetails => 'Contact',
-                _ => section.resolvedTitle(
-                  (kind) => kind == SectionKind.custom
-                      ? customSectionTitles[section.customSectionId] ??
-                            context.tr('customEntries')
-                      : defaultTitleResolver(context.languageCode)(kind),
-                ),
-              };
-              return DecoratedBox(
-                key: ValueKey(section.id),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Theme.of(context).colorScheme.outlineVariant,
+        if (sections.isEmpty) Text(context.tr('portfolioNoSections')),
+        if (sections.isNotEmpty)
+          PortfolioCard(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: sections.length,
+              itemBuilder: (context, index) {
+                final section = sections[index];
+                final label = switch (section.kind) {
+                  SectionKind.profile => 'Introduction',
+                  SectionKind.personalDetails => 'Contact',
+                  _ => section.resolvedTitle(
+                    (kind) => kind == SectionKind.custom
+                        ? customSectionTitles[section.customSectionId] ??
+                              context.tr('customEntries')
+                        : defaultTitleResolver(context.languageCode)(kind),
+                  ),
+                };
+                return DecoratedBox(
+                  key: ValueKey(section.id),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
                     ),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    ReorderableDragStartListener(
-                      enabled: !busy,
-                      index: index,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 2),
-                        child: Icon(
-                          AppIcons.dragIndicator,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: UiText(
+                          label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: section.visible
+                                ? Theme.of(context).colorScheme.onSurface
+                                : Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                          ),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: UiText(
-                        label,
-                        style: TextStyle(
-                          fontSize: 12,
+                      IconButton(
+                        tooltip: context.tr(
+                          section.visible
+                              ? 'hideNamedSection'
+                              : 'showNamedSection',
+                          args: {'section': context.ui(label)},
+                        ),
+                        onPressed: busy
+                            ? null
+                            : () {
+                                final updated = [...document.design.sections];
+                                final sourceIndex = updated.indexWhere(
+                                  (item) => item.id == section.id,
+                                );
+                                updated[sourceIndex] = section.copyWith(
+                                  visible: !section.visible,
+                                );
+                                _sections(updated);
+                              },
+                        icon: Icon(
+                          section.visible ? AppIcons.preview : AppIcons.hidden,
                           color: section.visible
-                              ? Theme.of(context).colorScheme.onSurface
+                              ? accent
                               : Theme.of(context).colorScheme.onSurfaceVariant,
+                          size: 20,
                         ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: context.tr(
-                        'moveSectionUp',
-                        args: {'section': context.ui(label)},
-                      ),
-                      onPressed: busy || index == 0
-                          ? null
-                          : () => _move(index, index - 1),
-                      icon: const Icon(AppIcons.keyboardArrowUp, size: 18),
-                    ),
-                    IconButton(
-                      tooltip: context.tr(
-                        'moveSectionDown',
-                        args: {'section': context.ui(label)},
-                      ),
-                      onPressed: busy || index == sections.length - 1
-                          ? null
-                          : () => _move(index, index + 1),
-                      icon: const Icon(AppIcons.keyboardArrowDown, size: 18),
-                    ),
-                    IconButton(
-                      tooltip: context.tr(
-                        section.visible
-                            ? 'hideNamedSection'
-                            : 'showNamedSection',
-                        args: {'section': context.ui(label)},
-                      ),
-                      onPressed: busy
-                          ? null
-                          : () {
-                              final updated = [...sections];
-                              updated[index] = section.copyWith(
-                                visible: !section.visible,
-                              );
-                              _sections(updated);
-                            },
-                      icon: Icon(
-                        section.visible ? AppIcons.preview : AppIcons.hidden,
-                        color: section.visible
-                            ? accent
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                        size: 20,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
-        ),
         const _Label('Share Portfolio'),
         PortfolioCard(
           padding: const EdgeInsets.all(14),
@@ -393,3 +368,38 @@ class _Label extends StatelessWidget {
     ),
   );
 }
+
+/// Inspect saved content independently of current visibility, so a hidden
+/// populated section stays available to turn back on.
+bool portfolioSectionHasContent(
+  SectionConfig section,
+  UserProfile profile,
+  List<String>? projectIds,
+) => switch (section.kind) {
+  SectionKind.personalDetails => [
+    profile.details.fullName,
+    profile.details.email,
+    profile.details.phone,
+    profile.details.location,
+    profile.details.website,
+    ...profile.details.links,
+  ].any((s) => s?.trim().isNotEmpty ?? false),
+  SectionKind.profile => profile.details.summary?.trim().isNotEmpty ?? false,
+  SectionKind.experience => profile.experiences.isNotEmpty,
+  SectionKind.education => profile.education.isNotEmpty,
+  SectionKind.projects => profile.projects.any(
+    (p) => projectIds == null || projectIds.contains(p.id),
+  ),
+  SectionKind.skills => profile.skills.isNotEmpty,
+  SectionKind.languages => profile.languages.isNotEmpty,
+  SectionKind.certificates => profile.certificates.isNotEmpty,
+  SectionKind.courses => profile.courses.isNotEmpty,
+  SectionKind.awards => profile.awards.isNotEmpty,
+  SectionKind.volunteer => profile.volunteer.isNotEmpty,
+  SectionKind.publications => profile.publications.isNotEmpty,
+  SectionKind.references => profile.references.isNotEmpty,
+  SectionKind.custom => profile.customSections.any(
+    (s) => s.id == section.customSectionId && s.entries.isNotEmpty,
+  ),
+  SectionKind.pageBreak => false,
+};

@@ -42,7 +42,7 @@ export async function handleShareMedia(
     if (!verified.ok) return reply({ error: "Share unavailable" }, 403);
     const payload = await verified.json();
     if (!payload?.document || !payload?.profile) return reply({ error: "Share unavailable" }, 403);
-    if (payload.document.type === "cv" && payload.document.profileSnapshot) payload.profile = payload.document.profileSnapshot;
+    if (payload.document.profileSnapshot) payload.profile = payload.document.profileSnapshot;
     const owner = payload.document.ownerId;
     if (typeof owner !== "string" || payload.profile.id !== owner) return reply({ error: "Share unavailable" }, 403);
     const sections = payload.document.design?.sections ?? [];

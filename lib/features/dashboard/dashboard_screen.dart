@@ -1,3 +1,4 @@
+import '../about/about_app_screen.dart';
 import '../../core/design/app_icons.dart';
 
 import 'package:cv_portfolio_maker/core/l10n/ui_text.dart';
@@ -27,7 +28,13 @@ import 'package:cv_portfolio_maker/features/settings/settings_screen.dart';
 /// A fixed bottom navigation switches between Home, Build CV, Portfolio and
 /// Settings while each tab keeps its own state.
 class DashboardScreen extends ConsumerStatefulWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({
+    super.key,
+    this.settingsRoute = false,
+    this.portfolioExpanded = false,
+  });
+  final bool settingsRoute;
+  final bool portfolioExpanded;
 
   @override
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
@@ -36,25 +43,29 @@ class DashboardScreen extends ConsumerStatefulWidget {
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
+    final tab = widget.settingsRoute ? 3 : ref.watch(dashboardTabProvider);
     return AppNavigationShell(
       body: AppContentTransition(
-        identity: ref.watch(dashboardTabProvider),
+        identity: tab,
         child: IndexedStack(
-          index: ref.watch(dashboardTabProvider),
+          index: tab,
           children: [
             const _DashboardHome(),
-            CvBuilderWizardScreen(active: ref.watch(dashboardTabProvider) == 1),
+            CvBuilderWizardScreen(active: tab == 1),
             const SizedBox.shrink(),
-            const SettingsScreen(),
+            SettingsScreen(portfolioExpanded: widget.portfolioExpanded),
           ],
         ),
       ),
-      selectedIndex: ref.watch(dashboardTabProvider),
+      selectedIndex: tab,
       onSelected: (value) {
         if (value == 2) {
           context.push('/portfolio');
+        } else if (value == 3) {
+          context.go('/settings');
         } else {
           ref.read(dashboardTabProvider.notifier).select(value);
+          if (widget.settingsRoute) context.go('/');
           final userId = ref.read(sessionProvider2).value?.id;
           if (value == 0 && userId != null) {
             ref.invalidate(sharesProvider(userId));
@@ -142,7 +153,7 @@ class _DashboardHomeState extends ConsumerState<_DashboardHome> {
               _DashboardHeader(
                 name: profileAsync.value?.details.fullName ?? user?.displayName,
                 avatarUrl: profileAsync.value?.details.avatarUrl,
-                onSettings: () => context.push('/settings'),
+                onSettings: () => context.go('/settings'),
                 onProfile: () => context.push('/profile'),
                 onBuild: () => _createCv(userId),
                 onPortfolio: () => context.push('/portfolio'),
@@ -420,7 +431,9 @@ class _DashboardHeader extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
+                  const AppInfoButton(buttonKey: ValueKey('home-app-about')),
                   IconButton(
+                    key: const ValueKey('home-settings'),
                     tooltip: context.tr('settings'),
                     icon: const Icon(AppIcons.settings),
                     onPressed: onSettings,

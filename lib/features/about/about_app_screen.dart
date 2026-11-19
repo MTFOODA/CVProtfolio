@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -79,6 +80,11 @@ class AboutAppScreen extends StatelessWidget {
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
+                          const SizedBox(height: AppSpacing.lg),
+                          Text(
+                            context.tr('aboutAppDescription'),
+                            textAlign: TextAlign.center,
+                          ),
                           const SizedBox(height: AppSpacing.xl),
                           Text(
                             context.tr('developedBy'),
@@ -154,6 +160,29 @@ class AboutAppScreen extends StatelessWidget {
           ),
         ),
       ),
+    ),
+  );
+}
+
+/// Consistent, accessible circled information button on owner and public pages.
+class AppInfoButton extends StatelessWidget {
+  const AppInfoButton({
+    super.key,
+    this.buttonKey,
+    this.portfolioThemeId = 'ocean',
+  });
+  final Key? buttonKey;
+  final String portfolioThemeId;
+  @override
+  Widget build(BuildContext context) => IconButton(
+    key: buttonKey,
+    tooltip: context.tr('aboutApp'),
+    icon: const Icon(AppIcons.infoOutline),
+    onPressed: () => context.push(
+      Uri(
+        path: '/about',
+        queryParameters: {'theme': portfolioThemeId},
+      ).toString(),
     ),
   );
 }

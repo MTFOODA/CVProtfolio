@@ -1,3 +1,5 @@
+import '../../data/portfolio_documents.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -14,7 +16,21 @@ final portfolioProvider =
       PortfolioController.new,
     );
 
-/// Owns presentation settings only. Profile content remains in profileProvider.
+final portfolioCvIdProvider = NotifierProvider<PortfolioCvSelection, String?>(
+  PortfolioCvSelection.new,
+);
+
+class PortfolioCvSelection extends Notifier<String?> {
+  @override
+  String? build() {
+    ref.watch(sessionProvider2.select((value) => value.value?.id));
+    return null;
+  }
+
+  void select(String id) => state = id;
+}
+
+/// Owns the selected CV's independent portfolio settings and share identity.
 class PortfolioController extends AsyncNotifier<CvDocument?> {
   String? _creatingFor;
   Future<CvDocument>? _creating;
@@ -30,8 +46,52 @@ class PortfolioController extends AsyncNotifier<CvDocument?> {
   Future<CvDocument?> build() async {
     final user = await ref.watch(sessionProvider2.future);
     if (user == null) return null;
+    final selectedCvId = ref.watch(portfolioCvIdProvider);
     final documents = await ref.watch(documentsProvider(user.id).future);
     if (!_active(user.id)) return null;
+    final cvs = documents.where((d) => d.type == DocumentType.cv).toList();
+    if (cvs.isNotEmpty) {
+      final cv =
+          cvs.where((d) => d.id == selectedCvId).firstOrNull ?? cvs.first;
+      final key = '${user.id}:${cv.id}';
+      final pending = _creatingFor == key ? _creating : null;
+      final request =
+          pending ??
+          syncOwnerCvPortfolios(
+            ref.read(backendProvider),
+            cv,
+            documents,
+            isActive: () => _active(user.id),
+          );
+      _creatingFor = key;
+      _creating = request;
+      try {
+        final paired = await request;
+        if (_active(user.id) &&
+            cvs.any(
+              (cv) => !documents.any(
+                (d) =>
+                    d.type == DocumentType.portfolio &&
+                    d.design.sourceCvId == cv.id,
+              ),
+            )) {
+          ref.invalidate(documentsProvider(user.id));
+        }
+        return paired.copyWith(
+          design: paired.design.copyWith(
+            templateId: portfolioThemeById(paired.design.templateId).id,
+            sections: paired.design.sections.isEmpty
+                ? defaultSections(isPortfolio: true)
+                : paired.design.sections,
+          ),
+        );
+      } finally {
+        if (identical(_creating, request)) {
+          _creating = null;
+          _creatingFor = null;
+        }
+      }
+    }
     for (final document in documents) {
       if (document.type == DocumentType.portfolio) {
         if (_creatingFor == user.id) {
@@ -94,12 +154,14 @@ class PortfolioController extends AsyncNotifier<CvDocument?> {
               updatedAtIso: () => DateTime.now().toIso8601String(),
             ),
           );
-      if (_active(updated.ownerId)) {
+      if (_active(updated.ownerId) && state.value?.id == updated.id) {
         state = AsyncData(saved);
         ref.invalidate(documentsProvider(updated.ownerId));
       }
     } catch (_) {
-      if (_active(updated.ownerId)) state = previous;
+      if (_active(updated.ownerId) && state.value?.id == updated.id) {
+        state = previous;
+      }
       rethrow;
     }
   }
@@ -150,7 +212,7 @@ class PortfolioController extends AsyncNotifier<CvDocument?> {
           userId: document.ownerId,
           password: password,
         );
-    if (_active(document.ownerId)) {
+    if (_active(document.ownerId) && state.value?.id == document.id) {
       state = AsyncData(saved);
       ref.invalidate(documentsProvider(document.ownerId));
     }

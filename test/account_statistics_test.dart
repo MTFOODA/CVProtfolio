@@ -10,7 +10,7 @@ import 'package:cv_portfolio_maker/core/domain/profile_models.dart';
 import 'package:cv_portfolio_maker/data/auth/auth_service.dart';
 import 'package:cv_portfolio_maker/data/local/export_counter.dart';
 import 'package:cv_portfolio_maker/data/repositories.dart';
-import 'package:cv_portfolio_maker/features/dashboard/dashboard_screen.dart';
+import 'package:cv_portfolio_maker/app/router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -226,10 +226,18 @@ void main() {
       await recordExport(other.id);
       await recordExport(other.id);
       await recordExport(other.id);
+      final signed = ValueNotifier(true);
+      final router = buildRouter(
+        isSignedIn: signed,
+        currentUserId: () =>
+            container.read(sessionProvider2).value?.id ?? owner.id,
+      );
+      addTearDown(router.dispose);
+      addTearDown(signed.dispose);
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(home: DashboardScreen()),
+          child: MaterialApp.router(routerConfig: router),
         ),
       );
       await settle();

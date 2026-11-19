@@ -1,3 +1,5 @@
+import '../about/about_app_screen.dart';
+import 'portfolio_cv_picker.dart';
 import '../../core/utils/profile_content.dart';
 import '../../core/design/app_icons.dart';
 import '../../core/theme/app_tokens.dart';
@@ -206,13 +208,24 @@ class _PortfolioBuilderScreenState
     if (user == null) return;
     final documents = await ref.read(backendProvider).listDocuments(user.id);
     if (!mounted) return;
-    final cv = documents.where((d) => d.type == DocumentType.cv).firstOrNull;
+    final sourceId = ref.read(portfolioProvider).value?.design.sourceCvId;
+    final cv = documents
+        .where(
+          (d) =>
+              d.type == DocumentType.cv &&
+              (sourceId == null || d.id == sourceId),
+        )
+        .firstOrNull;
     context.push(cv == null ? '/wizard' : '/wizard/${cv.id}');
   });
 
   Future<void> _download(UserProfile profile) => _run(() async {
     final documents = await ref.read(documentsProvider(profile.id).future);
-    final cvs = documents.where((d) => d.type == DocumentType.cv);
+    final sourceId = ref.read(portfolioProvider).value?.design.sourceCvId;
+    final cvs = documents.where(
+      (d) =>
+          d.type == DocumentType.cv && (sourceId == null || d.id == sourceId),
+    );
     final cv = cvs.isEmpty
         ? CvDocument(
             id: 'portfolio-cv',
@@ -231,8 +244,8 @@ class _PortfolioBuilderScreenState
         ? const AsyncValue<UserProfile?>.data(null)
         : ref.watch(profileProvider(user.id));
     final portfolioAsync = ref.watch(portfolioProvider);
-    final profile = profileAsync.value;
     final stored = portfolioAsync.value;
+    final profile = stored?.profileSnapshot ?? profileAsync.value;
     final document = stored == null || profile == null
         ? stored
         : stored.copyWith(
@@ -247,7 +260,8 @@ class _PortfolioBuilderScreenState
     final url = document == null ? null : _url(document);
     Widget body;
     var pages = <PortfolioPage>[PortfolioPage.about];
-    if (profileAsync.hasError || portfolioAsync.hasError) {
+    if ((profileAsync.hasError && stored?.profileSnapshot == null) ||
+        portfolioAsync.hasError) {
       body = Center(
         child: PortfolioEmpty(
           message: 'Unable to load your portfolio. Check your connection and try again.',
@@ -303,6 +317,7 @@ class _PortfolioBuilderScreenState
       ];
       final settings = PortfolioSettingsTab(
         document: document,
+        profile: profile,
         customSectionTitles: {
           for (final section in profile.customSections)
             section.id: section.title,
@@ -322,7 +337,21 @@ class _PortfolioBuilderScreenState
           ? settings
           : IndexedStack(index: pages.indexOf(_page), children: tabs);
     }
-    if (widget.embeddedSettings) return Theme(data: theme, child: body);
+    if (widget.embeddedSettings) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PortfolioCvPicker(busy: _busy),
+          body,
+        ],
+      );
+    }
+    body = Column(
+      children: [
+        PortfolioCvPicker(busy: _busy),
+        Expanded(child: body),
+      ],
+    );
     return Theme(
       data: theme,
       child: Scaffold(
@@ -366,6 +395,9 @@ class _PortfolioBuilderScreenState
                   ],
                 ),
           actions: [
+            AppInfoButton(
+              portfolioThemeId: document?.design.templateId ?? 'ocean',
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: FilledButton.icon(
@@ -393,7 +425,13 @@ class _PortfolioBuilderScreenState
         ),
         body: SafeArea(
           top: false,
-          child: AppContentTransition(identity: _page, child: body),
+          child: PortfolioBackdrop(
+            palette: portfolioThemeById(document?.design.templateId),
+            child: AppContentTransition(
+              identity: '${document?.id}:$_page',
+              child: body,
+            ),
+          ),
         ),
         bottomNavigationBar: widget.settingsOnly || pages.length <= 1
             ? null

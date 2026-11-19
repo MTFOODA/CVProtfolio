@@ -42,7 +42,7 @@ class CvDocument {
   /// Profile entry ids this document includes. `null` means "all visible".
   final List<String>? includedProjectIds;
 
-  /// Saved CV content. Portfolios keep reading the owner's live profile.
+  /// Saved content belonging to this CV or its paired portfolio.
   final UserProfile? profileSnapshot;
 
   final ShareMode shareMode;

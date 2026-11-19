@@ -26,12 +26,11 @@ abstraction, with separate keys per owner and document (`new` for an unfinished
 new CV). Text edits and section changes save the unfinished draft. The top Back
 and system Back save it and return Home; the bottom Back changes wizard steps.
 
-Generate saves the selected document's content, syncs changed content into the
-live Portfolio profile, then removes its unfinished draft. A new CV does not erase
+Generate saves the selected document's content and its paired portfolio, syncs changed content into the reusable account profile, then removes its unfinished draft. A new CV does not erase
 unrelated Portfolio projects or overwrite older CVs. Editing an older CV applies
 only changed entries and explicit deletions, preserving unrelated newer profile
 content. PDF, DOCX and previews resolve the document snapshot through the existing
-shared resolver; Portfolio continues to read the live profile.
+shared resolver. The paired portfolio uses that same saved snapshot; other CVs and their portfolios keep their own content and share identities.
 
 ## Supabase deployment
 

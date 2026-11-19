@@ -1,9 +1,7 @@
 /// Curated portfolio colour themes.
 ///
-/// These are *presentation* palettes only: switching a theme changes colours,
-/// never content. The underlying data always comes from the same [UserProfile]
-/// the CV builder writes to, so a CV edit is immediately reflected in the
-/// portfolio.
+/// Themes color the page canvas only. Each portfolio reads its associated
+/// CV's saved content and keeps independent presentation and sharing settings.
 library;
 
 import 'package:flutter/material.dart';
@@ -33,7 +31,7 @@ class PortfolioTheme {
   /// Gradient end colour for the hero section.
   final Color heroEnd;
 
-  /// Accent colour used for chips, links and section headings.
+  /// Swatch accent retained for palette previews.
   final Color accent;
 
   /// Foreground colour used on top of the hero gradient.

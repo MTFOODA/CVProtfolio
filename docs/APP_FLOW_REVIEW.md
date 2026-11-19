@@ -21,7 +21,7 @@ migration, user-account creation or deletion was performed during the review.
 | Export validation/delivery | Ignores superseded validation results, prevents duplicate export actions, waits for validation, and keeps a successful delivery successful if local statistics fail. |
 
 The CV snapshot remains the source for its preview, PDF and Word export.
-Portfolio content continues to use the live shared profile. Sharing remains
+Each CV now has an independent portfolio sourced from its saved snapshot. Portfolio styling, visibility, passwords and share links belong to that CV only. Sharing remains
 behind the existing publication, password, expiry and revocation boundaries.
 
 ## Verification
