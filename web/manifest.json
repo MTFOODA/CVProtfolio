@@ -1,12 +1,12 @@
 {
-    "name": "CV & Portfolio Studio",
-    "short_name": "CV & Portfolio Studio",
+    "name": "CV & Portfolio Builder",
+    "short_name": "CV & Portfolio Builder",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "CV & Portfolio Studio",
-    "orientation": "portrait-primary",
+    "background_color": "#F1F7FB",
+    "theme_color": "#343A40",
+    "description": "CV & Portfolio Builder — design, build and share your professional story",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

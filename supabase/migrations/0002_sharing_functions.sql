@@ -16,9 +16,10 @@ create or replace function public.generate_share_token()
 returns text
 language sql
 volatile
+set search_path = public, extensions
 as $$
   -- 32 random bytes -> 43 chars of base64url: unguessable and high entropy.
-  select replace(encode(gen_random_bytes(32), 'base64'), '/', '_')
+  select rtrim(translate(encode(gen_random_bytes(32), 'base64'), '+/', '-_'), '=')
 $$;
 
 -- ------------------------------------------------------------ slug resolution
@@ -108,16 +109,29 @@ security definer
 set search_path = public
 as $$
 declare
-  v_result jsonb;
+  v_share public.document_shares%rowtype;
+  v_document public.documents%rowtype;
+  v_profile public.profiles%rowtype;
 begin
-  -- Identical rules to slug resolution, keyed on the restricted token.
-  select public.resolve_share_by_slug(sh.slug)
-    into v_result
-    from public.document_shares sh
-   where sh.access_token = p_token
-     and sh.mode = 'restrictedRecipient';
-
-  return v_result;
+  -- Restricted shares have no slug. Resolve the token independently and
+  -- enforce publication, expiry and revocation before returning its document.
+  select * into v_share from public.document_shares
+   where access_token = p_token and mode = 'restrictedRecipient';
+  if not found then return null; end if;
+  if v_share.revoked_at is not null then return null; end if;
+  if v_share.expires_at is not null and v_share.expires_at <= now() then
+    return null;
+  end if;
+  select * into v_document from public.documents where id = v_share.document_id;
+  if not found or v_document.published is not true then return null; end if;
+  select * into v_profile from public.profiles where id = v_document.owner_id;
+  if not found then return null; end if;
+  -- Payload helpers are installed by 0004 and extended by 0005.
+  return jsonb_build_object(
+    'document', public._document_payload(v_document),
+    'profile', public._profile_payload(v_profile),
+    'shareId', v_share.id
+  );
 end;
 $$;
 

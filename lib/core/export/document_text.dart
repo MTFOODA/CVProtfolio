@@ -8,7 +8,6 @@
 library;
 
 import 'package:cv_portfolio_maker/core/domain/enums.dart';
-import 'package:cv_portfolio_maker/core/domain/profile_models.dart';
 import 'package:cv_portfolio_maker/core/render/resolved_document.dart';
 import 'package:cv_portfolio_maker/core/render/section_titles.dart';
 
@@ -20,6 +19,9 @@ class DocumentLine {
     this.level = 0,
     this.url,
     this.isBullet = false,
+    this.role,
+    this.contactLabel,
+    this.boldPrefix,
   });
 
   final String text;
@@ -35,6 +37,9 @@ class DocumentLine {
 
   /// `true` for free-text description lines, which export as list items.
   final bool isBullet;
+  final String? role;
+  final String? contactLabel;
+  final String? boldPrefix;
 
   @override
   String toString() => text;
@@ -77,10 +82,18 @@ List<DocumentLine> flattenDocument(
   }
   final title = details.professionalTitle?.trim();
   if (title != null && title.isNotEmpty) {
-    lines.add(DocumentLine(title, level: 1));
+    lines.add(DocumentLine(title, level: 1, role: 'professionalTitle'));
   }
   for (final contact in resolved.contacts) {
-    lines.add(DocumentLine('${contact.label}: ${contact.value}', level: 3));
+    lines.add(
+      DocumentLine(
+        contact.text(),
+        url: contact.url,
+        level: 3,
+        role: 'contact',
+        contactLabel: contact.label,
+      ),
+    );
   }
   final summary = resolved.summary.trim();
   if (summary.isNotEmpty) lines.add(DocumentLine(summary, level: 3));
@@ -88,10 +101,33 @@ List<DocumentLine> flattenDocument(
   for (final section in resolved.sections) {
     if (section.isPageBreak) continue;
     lines.add(DocumentLine(section.title, isHeading: true, level: 1));
+    final start = lines.length;
     _appendSection(lines, section, languageCode);
+    if ({
+      SectionKind.experience,
+      SectionKind.education,
+      SectionKind.certificates,
+      SectionKind.courses,
+      SectionKind.awards,
+      SectionKind.volunteer,
+      SectionKind.publications,
+    }.contains(section.config.kind)) {
+      for (var i = start + 1; i < lines.length; i++) {
+        final line = lines[i];
+        if (lines[i - 1].level == 2 && line.level == 3 && !line.isBullet) {
+          lines[i] = DocumentLine(
+            line.text,
+            level: line.level,
+            url: line.url,
+            role: 'entryMeta',
+          );
+        }
+      }
+    }
   }
-
-  return lines.where((l) => l.text.trim().isNotEmpty).toList();
+  return lines
+      .where((l) => l.text.trim().isNotEmpty || l.role == 'customImage')
+      .toList();
 }
 
 /// Appends the entries of one resolved section.
@@ -116,9 +152,18 @@ void _appendSection(
             level: 3,
           ),
         );
-        for (final d in e.descriptions) {
-          if (d.trim().isNotEmpty) {
-            lines.add(DocumentLine(d.trim(), level: 3, isBullet: true));
+        for (final d in e.resolvedDescriptions) {
+          if (d.text.trim().isNotEmpty) {
+            lines.add(
+              DocumentLine(
+                d.formatted,
+                level: 3,
+                isBullet: true,
+                boldPrefix: d.label.trim().isEmpty
+                    ? null
+                    : '${d.label.trim()}: ',
+              ),
+            );
           }
         }
       }
@@ -201,6 +246,15 @@ void _appendSection(
     case SectionKind.publications:
       for (final p in section.publications) {
         lines.add(DocumentLine(p.title ?? '', level: 2));
+        if (!p.dateRange.isEmpty) {
+          lines.add(
+            DocumentLine(
+              p.dateRange.format(languageCode: languageCode),
+              level: 3,
+              role: 'entryMeta',
+            ),
+          );
+        }
         lines.add(
           DocumentLine(joinParts([p.venue, p.dateRange.format()]), level: 3),
         );
@@ -218,11 +272,31 @@ void _appendSection(
     case SectionKind.projects:
       for (final p in section.projects) {
         lines.add(DocumentLine(p.title ?? '', level: 2));
+        if (!p.dateRange.isEmpty) {
+          lines.add(
+            DocumentLine(
+              p.dateRange.format(languageCode: languageCode),
+              level: 3,
+              role: 'entryMeta',
+            ),
+          );
+        }
         if (p.summary != null && p.summary!.trim().isNotEmpty) {
           lines.add(DocumentLine(p.summary!.trim(), level: 3));
         }
-        if (p.description != null && p.description!.trim().isNotEmpty) {
-          lines.add(DocumentLine(p.description!.trim(), level: 3));
+        for (final d in p.resolvedDescriptions) {
+          if (d.text.trim().isNotEmpty) {
+            lines.add(
+              DocumentLine(
+                d.formatted,
+                level: 3,
+                isBullet: true,
+                boldPrefix: d.label.trim().isEmpty
+                    ? null
+                    : '${d.label.trim()}: ',
+              ),
+            );
+          }
         }
         if (p.technologies.isNotEmpty) {
           lines.add(DocumentLine(p.technologies.join(', '), level: 3));
@@ -240,6 +314,23 @@ void _appendSection(
     case SectionKind.custom:
       for (final e in section.customEntries) {
         lines.add(DocumentLine(e.title, level: 2));
+        if (e.formatMetadata(languageCode: languageCode).isNotEmpty) {
+          lines.add(
+            DocumentLine(
+              e.formatMetadata(languageCode: languageCode),
+              level: 3,
+              role: 'entryMeta',
+            ),
+          );
+        }
+        if ((e.url ?? '').isNotEmpty) {
+          lines.add(DocumentLine(e.url!, level: 3, url: e.url));
+        }
+        if ((e.imageUrl ?? '').isNotEmpty) {
+          lines.add(
+            DocumentLine('', level: 3, role: 'customImage', url: e.imageUrl),
+          );
+        }
         if (e.content != null && e.content!.trim().isNotEmpty) {
           lines.add(DocumentLine(e.content!.trim(), level: 3));
         }
@@ -257,7 +348,7 @@ String plainText(ResolvedDocument resolved, {String languageCode = 'en'}) =>
     flattenDocument(
       resolved,
       languageCode: languageCode,
-    ).map((l) => l.text).join('\n');
+    ).where((l) => l.role != 'customImage').map((l) => l.text).join('\n');
 
 /// `true` when the document contains Arabic text that needs a shaping font.
 bool documentNeedsArabicFont(

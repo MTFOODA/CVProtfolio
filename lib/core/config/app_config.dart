@@ -1,7 +1,7 @@
 /// Application configuration.
 ///
-/// Every value is supplied at build/run time through Dart `--dart-define`
-/// flags, or through a JSON file that feeds the same values:
+/// Normal startup loads the bundled public project settings. Build-time
+/// `--dart-define` values can override them for a different deployment:
 ///
 /// ```sh
 /// flutter run \
@@ -19,9 +19,12 @@
 /// the Google Cloud console respectively.
 library;
 
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
 
-/// Immutable configuration resolved from compile-time environment values.
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+
+/// Immutable public application settings.
 class AppConfig {
   const AppConfig({
     required this.supabaseUrl,
@@ -33,9 +36,63 @@ class AppConfig {
   });
 
   /// Configuration built purely from `--dart-define` values.
-  factory AppConfig.fromEnvironment() {
-    const url = String.fromEnvironment('SUPABASE_URL');
-    const key = String.fromEnvironment('SUPABASE_ANON_KEY');
+  factory AppConfig.fromEnvironment() =>
+      AppConfig._fromValues(_environmentValues);
+
+  static const publicConfigAsset = 'assets/config/public_app_config.json';
+
+  static Map<String, String> get _environmentValues => {
+    'SUPABASE_URL': const String.fromEnvironment('SUPABASE_URL'),
+    'SUPABASE_ANON_KEY': const String.fromEnvironment('SUPABASE_ANON_KEY'),
+    'GOOGLE_WEB_CLIENT_ID': const String.fromEnvironment(
+      'GOOGLE_WEB_CLIENT_ID',
+    ),
+    'GOOGLE_IOS_CLIENT_ID': const String.fromEnvironment(
+      'GOOGLE_IOS_CLIENT_ID',
+    ),
+    'SHARE_BASE_URL': const String.fromEnvironment('SHARE_BASE_URL'),
+  };
+
+  /// Loads the same connected settings on Android, web and desktop even when
+  /// launched with plain `flutter run`. Offline operation is an explicit choice.
+  static Future<AppConfig> load({
+    AssetBundle? bundle,
+    Map<String, String>? environmentValues,
+    bool offline = const bool.fromEnvironment('OFFLINE_MODE'),
+  }) async {
+    if (offline) return AppConfig._fromValues(const {});
+    final overrides = environmentValues ?? _environmentValues;
+    final url = overrides['SUPABASE_URL']?.trim() ?? '';
+    final key = overrides['SUPABASE_ANON_KEY']?.trim() ?? '';
+    if (url.isNotEmpty != key.isNotEmpty) {
+      throw const FormatException(
+        'SUPABASE_URL and SUPABASE_ANON_KEY must be supplied together',
+      );
+    }
+    // Never combine credentials for a different project with the bundled ones.
+    if (url.isNotEmpty && key.isNotEmpty) {
+      return AppConfig._fromValues(overrides);
+    }
+    final raw = await (bundle ?? rootBundle).loadString(publicConfigAsset);
+    final defaults = (jsonDecode(raw) as Map<String, dynamic>).map(
+      (key, value) => MapEntry(key, value as String),
+    );
+    final config = AppConfig._fromValues({
+      ...defaults,
+      for (final entry in overrides.entries)
+        if (entry.value.trim().isNotEmpty) entry.key: entry.value,
+    });
+    if (!config.isSupabaseConfigured || !config.hasGoogleWebClientId) {
+      throw const FormatException(
+        'Bundled public application settings are incomplete',
+      );
+    }
+    return config;
+  }
+
+  factory AppConfig._fromValues(Map<String, String> values) {
+    final url = values['SUPABASE_URL']?.trim() ?? '';
+    final key = values['SUPABASE_ANON_KEY']?.trim() ?? '';
 
     // Without both credentials the app falls back to local persistence so the
     // full product remains usable and testable offline.
@@ -44,12 +101,11 @@ class AppConfig {
     return AppConfig(
       supabaseUrl: url,
       supabaseAnonKey: key,
-      googleWebClientId: const String.fromEnvironment('GOOGLE_WEB_CLIENT_ID'),
-      googleIosClientId: const String.fromEnvironment('GOOGLE_IOS_CLIENT_ID'),
-      shareBaseUrl: const String.fromEnvironment(
-        'SHARE_BASE_URL',
-        defaultValue: 'https://cv-portfolio.example.com',
-      ),
+      googleWebClientId: values['GOOGLE_WEB_CLIENT_ID']?.trim() ?? '',
+      googleIosClientId: values['GOOGLE_IOS_CLIENT_ID']?.trim() ?? '',
+      shareBaseUrl: (values['SHARE_BASE_URL']?.trim().isNotEmpty ?? false)
+          ? values['SHARE_BASE_URL']!.trim()
+          : 'https://cv-portfolio.example.com',
       backendMode: hasSupabase ? BackendMode.supabase : BackendMode.local,
     );
   }
@@ -83,7 +139,7 @@ class AppConfig {
 
   /// Human readable status for the settings/debug surface.
   String get backendStatus => isSupabaseConfigured
-      ? 'Supabase connected'
+      ? 'Supabase configured'
       : 'Local mode (Supabase not configured)';
 
   @override

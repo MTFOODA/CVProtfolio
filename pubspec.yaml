@@ -1,5 +1,5 @@
 name: cv_portfolio_maker
-description: "CV & Portfolio Studio"
+description: "CV & Portfolio Builder"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.0.4+5
 
 environment:
   sdk: ^3.13.5
@@ -32,6 +32,8 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -43,6 +45,8 @@ dependencies:
   pdf: ^3.13.1
   printing: ^5.15.1
   archive: ^4.3.0
+  # Reuses the version already resolved by pdf for DOCX image conversion.
+  image: ^4.12.0
   # Used by `pdf` itself for the Unicode Bidi Algorithm (UAX #9) and Arabic
   # shaping. Declared directly so the exporters can call the same engine the
   # renderer relies on. Version pinned by `pdf`; no resolution change.
@@ -54,10 +58,25 @@ dependencies:
   url_launcher: ^6.3.3
   file_picker: ^13.1.0
   video_player: ^2.14.1
+  # SHA-256 hashing for locally-stored portfolio access passwords. The Supabase
+  # backend hashes server-side with pgcrypto instead; this is only used by the
+  # on-device repository so local mode never stores plaintext.
+  crypto: ^3.0.6
+  share_plus: ^13.3.1
+  local_auth: 3.0.2
+  flutter_secure_storage: 11.2.0
 
 dev_dependencies:
+  integration_test:
+    sdk: flutter
+  video_player_platform_interface: ^6.9.0
   flutter_test:
     sdk: flutter
+
+  # Generates the Android/iOS/Web/Windows launcher icons from the square brand
+  # masters in `assets/branding/` (see `flutter_launcher_icons:` below and
+  # `tools/create_identity.py` for how those masters are produced).
+  flutter_launcher_icons: ^0.14.4
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -79,12 +98,18 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
+    - assets/config/public_app_config.json
     # Noto Naskh Arabic Regular (SIL OFL 1.1, ~212 KB) ships so Arabic documents
     # export on a device that has never been online. The licence and provenance
     # notes live beside it; `export_fonts.dart` loads the file explicitly via
     # its `bundledArabicFontAsset` constant (the asset key inside the bundle is
     # this path, which is why the `assets/` prefix is part of it).
     - assets/google_fonts/
+    # Original gray/sky document-and-arrow identity from
+    # `tools/create_identity.py`. Only the in-app logo is bundled; the
+    # 1024 px icon masters are build-time inputs for `flutter_launcher_icons`
+    # and would only add weight to the app.
+    - assets/branding/app_logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -111,3 +136,74 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+  fonts:
+    - family: tajawal
+      fonts:
+        - asset: assets/google_fonts/Tajawal-Regular.ttf
+        - asset: assets/google_fonts/Tajawal-Medium.ttf
+          weight: 500
+        - asset: assets/google_fonts/Tajawal-Bold.ttf
+          weight: 600
+        - asset: assets/google_fonts/Tajawal-Bold.ttf
+          weight: 700
+    - family: inter
+      fonts:
+        - asset: assets/google_fonts/Inter-Regular.ttf
+        - asset: assets/google_fonts/Inter-Variable.ttf
+          weight: 500
+        - asset: assets/google_fonts/Inter-Variable.ttf
+          weight: 600
+        - asset: assets/google_fonts/Inter-Bold.ttf
+          weight: 700
+    - family: lora
+      fonts:
+        - asset: assets/google_fonts/Lora-Regular.ttf
+        - asset: assets/google_fonts/Lora-Bold.ttf
+          weight: 700
+    - family: roboto
+      fonts:
+        - asset: assets/google_fonts/Roboto-Regular.ttf
+        - asset: assets/google_fonts/Roboto-Bold.ttf
+          weight: 700
+    - family: notoNaskhArabic
+      fonts:
+        - asset: assets/google_fonts/NotoNaskhArabic-Regular.ttf
+    - family: CvContactIcons
+      fonts:
+        - asset: assets/google_fonts/ContactIcons-Regular.ttf
+    - family: CvBrandIcons
+      fonts:
+        - asset: assets/google_fonts/ContactBrands-Regular.ttf
+
+# Launcher icon generation: `dart run flutter_launcher_icons`.
+#
+# The masters are square 1024 px PNGs rendered from the approved CV monogram by
+# `tools/create_identity.py`; the original banner is never modified.
+# `app_icon.png` frames the emblem for legacy/rounded launchers, while
+# `app_icon_foreground.png` keeps the emblem inside the 66% adaptive safe zone
+# and fills the whole 108 dp layer so the launcher mask never reveals a seam.
+# The foreground inset is 0 because that layer is already padded; the plugin's
+# 16% default would shrink the artwork and expose the background plate.
+#
+# iOS is disabled because this project has no `ios/` platform folder; enabling
+# it later only requires switching `ios` to true. Regenerate with:
+#   python tools/create_identity.py
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/branding/app_icon.png"
+  adaptive_icon_background: "#2D333B"
+  adaptive_icon_foreground: "assets/branding/app_icon_foreground.png"
+  adaptive_icon_foreground_inset: 0
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/branding/app_icon_web.png"
+    background_color: "#F1F7FB"
+    theme_color: "#343A40"
+  windows:
+    generate: true
+    image_path: "assets/branding/app_icon.png"
+    icon_size: 256

@@ -25,7 +25,7 @@ create table if not exists public.profiles (
   awards         jsonb not null default '[]'::jsonb,
   volunteer      jsonb not null default '[]'::jsonb,
   publications   jsonb not null default '[]'::jsonb,
-  references     jsonb not null default '[]'::jsonb,
+  "references"   jsonb not null default '[]'::jsonb,
   projects       jsonb not null default '[]'::jsonb,
   custom_sections jsonb not null default '[]'::jsonb,
   created_at     timestamptz not null default now(),
@@ -130,3 +130,8 @@ create policy "owners manage their shares"
         and d.owner_id = auth.uid()
     )
   );
+
+-- Access must also work when automatic Data API grants are disabled.
+-- RLS above continues to enforce ownership for every operation.
+grant select, insert, update, delete on public.profiles,
+  public.documents, public.document_shares to authenticated;

@@ -18,6 +18,7 @@ import 'dart:typed_data';
 
 import 'package:pdf/widgets.dart' as pw;
 
+import 'package:cv_portfolio_maker/core/branding/app_branding.dart';
 import 'package:cv_portfolio_maker/core/domain/enums.dart';
 import 'package:cv_portfolio_maker/core/export/export_fonts.dart';
 import 'package:cv_portfolio_maker/core/export/pdf_sections.dart';
@@ -25,12 +26,16 @@ import 'package:cv_portfolio_maker/core/export/pdf_style.dart';
 import 'package:cv_portfolio_maker/core/render/document_layout.dart';
 import 'package:cv_portfolio_maker/core/render/resolved_document.dart';
 
+import '../render/section_titles.dart';
+import '../utils/contact_links.dart';
+
 /// Everything needed to build one PDF.
 class PdfBuildRequest {
   const PdfBuildRequest({
     required this.resolved,
     required this.mode,
     required this.fonts,
+    this.nameFonts,
     this.images,
     this.languageCode = 'en',
   });
@@ -40,6 +45,7 @@ class PdfBuildRequest {
   final ResolvedDocument resolved;
   final ExportMode mode;
   final ExportFontSet fonts;
+  final ExportFontSet? nameFonts;
   final ImageLookup? images;
   final String languageCode;
 }
@@ -64,6 +70,7 @@ class PdfDocumentBuilder {
     final style = PdfStyle(
       design: resolved.design,
       fonts: request.fonts,
+      nameFonts: request.nameFonts,
       ats: request.mode == ExportMode.atsFriendly,
     );
     final renderer = SectionRenderer(
@@ -75,8 +82,8 @@ class PdfDocumentBuilder {
     final document = pw.Document(
       title: resolved.document.title,
       author: resolved.details.fullName ?? resolved.document.title,
-      creator: 'CV & Portfolio Studio',
-      producer: 'CV & Portfolio Studio',
+      creator: kAppDisplayName,
+      producer: kAppDisplayName,
       subject: resolved.document.type == DocumentType.portfolio
           ? 'Portfolio'
           : 'Curriculum Vitae',
@@ -88,7 +95,10 @@ class PdfDocumentBuilder {
       pw.MultiPage(
         pageTheme: pw.PageTheme(
           pageFormat: style.pageFormat,
-          margin: pw.EdgeInsets.all(style.margin),
+          margin: pw.EdgeInsets.symmetric(
+            horizontal: style.margin,
+            vertical: style.verticalMargin,
+          ),
           theme: style.theme(),
         ),
         header: (context) => _runningHeader(style),
@@ -252,24 +262,57 @@ class PdfDocumentBuilder {
       return null;
     }
 
-    final align = style.rtl
+    final align = style.presentation.headerStyle == 'center'
+        ? pw.CrossAxisAlignment.center
+        : style.rtl
         ? pw.CrossAxisAlignment.end
         : pw.CrossAxisAlignment.start;
     final avatar = renderer.avatarWidget(details);
-    final identity = pw.Column(
-      crossAxisAlignment: align,
-      children: [
-        if (name.isNotEmpty)
-          pw.Text(style.text(name), style: style.nameStyle()),
-        if (title.isNotEmpty)
-          pw.Text(style.text(title), style: style.subtitleStyle()),
-      ],
+    final identityChildren = <pw.Widget>[
+      if (name.isNotEmpty)
+        pw.Text(
+          style.text(name),
+          style: style.nameStyle(),
+          textAlign: style.presentation.headerStyle == 'center'
+              ? pw.TextAlign.center
+              : style.bodyAlign,
+        ),
+      if (title.isNotEmpty)
+        pw.Text(
+          style.text(title),
+          style: style.subtitleStyle(),
+          textAlign: style.presentation.headerStyle == 'center'
+              ? pw.TextAlign.center
+              : style.bodyAlign,
+        ),
+    ];
+    final identity = style.presentation.identityArrangement == 'inline'
+        ? pw.Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            alignment: style.presentation.headerStyle == 'center'
+                ? pw.WrapAlignment.center
+                : pw.WrapAlignment.start,
+            crossAxisAlignment: pw.WrapCrossAlignment.center,
+            children: identityChildren,
+          )
+        : pw.Column(crossAxisAlignment: align, children: identityChildren);
+    final headerWidth = style.pageFormat.width - style.margin * 2;
+    final innerWidth =
+        headerWidth - (avatar == null ? 0 : style.presentation.avatarSize + 10);
+    final contactBlock = _contacts(
+      contacts,
+      style,
+      availableWidth: style.presentation.headerStyle == 'center'
+          ? headerWidth
+          : style.presentation.headerStyle == 'split'
+          ? innerWidth / 2
+          : innerWidth,
     );
-    final contactBlock = _contacts(contacts, style);
 
     final pw.Widget head = switch (style.presentation.headerStyle) {
       'center' => pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
           if (avatar != null) ...[avatar, pw.SizedBox(height: 6)],
           identity,
@@ -281,7 +324,7 @@ class PdfDocumentBuilder {
         children: [
           if (avatar != null) ...[avatar, pw.SizedBox(width: 10)],
           pw.Expanded(child: identity),
-          if (contacts.isNotEmpty) contactBlock,
+          if (contacts.isNotEmpty) pw.Expanded(child: contactBlock),
         ],
       ),
       _ => pw.Row(
@@ -323,28 +366,138 @@ class PdfDocumentBuilder {
 
   /// Contact details, always including the label so the information survives
   /// text extraction and is never conveyed by an icon alone.
-  pw.Widget _contacts(List<ResolvedContact> contacts, PdfStyle style) {
-    final items = [for (final c in contacts) '${c.label}: ${c.value}'];
-    if (items.isEmpty) return pw.SizedBox.shrink();
-    final align = style.rtl
-        ? pw.CrossAxisAlignment.end
-        : pw.CrossAxisAlignment.start;
-    if (style.presentation.contactInline &&
-        style.presentation.showContactIcons) {
-      return pw.Wrap(
-        spacing: 10,
-        runSpacing: 2,
+  pw.Widget _contacts(
+    List<ResolvedContact> contacts,
+    PdfStyle style, {
+    double? availableWidth,
+  }) => pw.Directionality(
+    textDirection: style.rtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+    child: _contactDetails(contacts, style, availableWidth: availableWidth),
+  );
+
+  pw.Widget _contactDetails(
+    List<ResolvedContact> contacts,
+    PdfStyle style, {
+    double? availableWidth,
+  }) {
+    final width = availableWidth ?? style.pageFormat.width - style.margin * 2;
+    final center = style.presentation.headerStyle == 'center';
+    pw.Widget item(ResolvedContact contact, double maxWidth) {
+      final decorated = style.presentation.contactIconStyle != 'plain';
+      final brand = contactBrandCodes[contact.label];
+      final icon = brand == null ? style.fonts.iconFont : style.fonts.brandFont;
+      final widget = pw.SizedBox(
+        width: maxWidth,
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            if (style.presentation.showContactIcons &&
+                icon != null &&
+                !style.ats) ...[
+              pw.Container(
+                padding: pw.EdgeInsets.all(decorated ? 2 : 0),
+                decoration: decorated
+                    ? pw.BoxDecoration(
+                        border: pw.Border.all(
+                          color: style.secondaryColor,
+                          width: .4,
+                        ),
+                        borderRadius: pw.BorderRadius.circular(
+                          style.presentation.contactIconStyle == 'circle'
+                              ? 30
+                              : style.presentation.contactIconStyle == 'rounded'
+                              ? 3
+                              : 0,
+                        ),
+                      )
+                    : null,
+                child: pw.Text(
+                  String.fromCharCode(
+                    brand ?? contactIconCodes[contact.label] ?? 0xe157,
+                  ),
+                  textDirection: pw.TextDirection.ltr,
+                  style: pw.TextStyle(
+                    font: icon,
+                    fontNormal: icon,
+                    fontBold: icon,
+                    fontItalic: icon,
+                    fontBoldItalic: icon,
+                    fontSize: style.presentation.resolvedContactIconSize(
+                      style.typography.bodyFontSize,
+                    ),
+                    color: style.secondaryColor,
+                  ),
+                ),
+              ),
+              pw.SizedBox(width: 4),
+            ],
+            pw.Expanded(
+              child: pw.Text(
+                style.text(contact.text(), rtlBase: false),
+                // Text is already shaped; Directionality only controls the row.
+                textDirection: pw.TextDirection.ltr,
+                style: style.metaStyle(),
+                textAlign: center ? pw.TextAlign.center : style.bodyAlign,
+              ),
+            ),
+          ],
+        ),
+      );
+      return contact.url == null
+          ? widget
+          : pw.UrlLink(destination: contact.url!, child: widget);
+    }
+
+    final arrangement = style.presentation.resolvedContactArrangement;
+    pw.Widget row(List<ResolvedContact> values) => pw.Wrap(
+      alignment: center ? pw.WrapAlignment.center : pw.WrapAlignment.start,
+      spacing: 10,
+      runSpacing: 4,
+      children: [
+        for (final c in values)
+          item(
+            c,
+            (c.text().length * style.typography.bodyFontSize * .55 +
+                    (style.presentation.showContactIcons
+                        ? style.presentation.resolvedContactIconSize(
+                                style.typography.bodyFontSize,
+                              ) +
+                              8
+                        : 0))
+                .clamp(60.0, width)
+                .toDouble(),
+          ),
+      ],
+    );
+    if (arrangement == 'compact' || arrangement == 'oneRow') {
+      return row(contacts);
+    }
+    if (arrangement == 'twoRows') {
+      final middle = (contacts.length / 2).ceil();
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
-          for (final item in items)
-            pw.Text(style.text(item), style: style.metaStyle()),
+          row(contacts.take(middle).toList()),
+          pw.SizedBox(height: 4),
+          row(contacts.skip(middle).toList()),
         ],
       );
     }
+    if (arrangement == 'grid') {
+      return pw.Wrap(
+        spacing: 12,
+        runSpacing: 4,
+        children: [for (final c in contacts) item(c, (width - 12) / 2)],
+      );
+    }
     return pw.Column(
-      crossAxisAlignment: align,
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        for (final item in items)
-          pw.Text(style.text(item), style: style.metaStyle()),
+        for (final c in contacts)
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 3),
+            child: item(c, width),
+          ),
       ],
     );
   }

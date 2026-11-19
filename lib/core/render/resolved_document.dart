@@ -12,12 +12,24 @@ import 'package:cv_portfolio_maker/core/domain/document_models.dart';
 import 'package:cv_portfolio_maker/core/domain/enums.dart';
 import 'package:cv_portfolio_maker/core/domain/profile_models.dart';
 
+import '../utils/contact_links.dart';
+import '../utils/profile_content.dart';
+
 /// A resolved contact line, already filtered for missing values.
 class ResolvedContact {
-  const ResolvedContact({required this.label, required this.value});
+  const ResolvedContact({
+    required this.label,
+    required this.value,
+    this.displayValue,
+    this.url,
+  });
 
   final String label;
   final String value;
+  final String? displayValue;
+  final String? url;
+  // Labels identify icons and links; the CV displays only the contact value.
+  String text() => displayValue ?? value;
 }
 
 /// A resolved section ready for rendering.
@@ -124,7 +136,10 @@ class ResolvedDocument {
     required String Function(SectionKind) defaultTitle,
     bool atsFriendly = false,
   }) {
-    final design = document.design;
+    if (document.type == DocumentType.cv && document.profileSnapshot != null) {
+      profile = document.profileSnapshot!;
+    }
+    final design = withProfileCustomSections(document.design, profile);
     final effectiveDesign = atsFriendly ? atsSafeDesign(design) : design;
 
     final contacts = <ResolvedContact>[];
@@ -132,7 +147,37 @@ class ResolvedDocument {
 
     void addContact(String label, String? value) {
       if (value != null && value.trim().isNotEmpty) {
-        contacts.add(ResolvedContact(label: label, value: value.trim()));
+        final raw = value.trim();
+        final web = label == 'Website' || label == 'Link';
+        final target = web ? contactWebUrl(raw) : null;
+        final kind = web ? contactLinkKind(raw) : label;
+        final custom = details.linkLabels[raw]?.trim();
+        final displayed = web && !atsFriendly
+            ? custom != null && custom.isNotEmpty
+                  ? custom
+                  : compactContactUrl(raw)
+            : raw;
+        final contact = ResolvedContact(
+          label: kind == 'Link' && label == 'Website' ? 'Website' : kind,
+          value: raw,
+          displayValue: displayed,
+          url:
+              target ??
+              (label == 'Email' &&
+                      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(raw)
+                  ? Uri(scheme: 'mailto', path: raw).toString()
+                  : label == 'Phone' &&
+                        RegExp(r'^\+?[\d\s().-]+$').hasMatch(raw)
+                  ? 'tel:${raw.replaceAll(RegExp(r'[\s().-]'), '')}'
+                  : null),
+        );
+        if (!contacts.any(
+          (c) =>
+              c.url != null && c.url == contact.url ||
+              c.label == contact.label && c.value == contact.value,
+        )) {
+          contacts.add(contact);
+        }
       }
     }
 
@@ -201,7 +246,14 @@ class ResolvedDocument {
       final hiddenIds = config.hiddenEntryIds.toSet();
       final section = _resolveSection(
         config: config,
-        title: config.resolvedTitle(defaultTitle),
+        title: config.resolvedTitle((kind) {
+          if (kind == SectionKind.custom) {
+            for (final section in profile.customSections) {
+              if (section.id == config.customSectionId) return section.title;
+            }
+          }
+          return defaultTitle(kind);
+        }),
         profile: profile,
         projects: projects,
         hiddenIds: hiddenIds,
@@ -243,34 +295,43 @@ ResolvedSection _resolveSection({
     config: config,
     title: title,
     experiences: config.kind == SectionKind.experience
-        ? keep(profile.experiences, (e) => e.id)
+        ? keep(
+            profile.experiences.where((e) => e.visible).toList(),
+            (e) => e.id,
+          )
         : const [],
     education: config.kind == SectionKind.education
-        ? keep(profile.education, (e) => e.id)
+        ? keep(profile.education.where((e) => e.visible).toList(), (e) => e.id)
         : const [],
     skills: config.kind == SectionKind.skills
-        ? keep(profile.skills, (e) => e.id)
+        ? keep(profile.skills.where((e) => e.visible).toList(), (e) => e.id)
         : const [],
     languages: config.kind == SectionKind.languages
-        ? keep(profile.languages, (e) => e.id)
+        ? keep(profile.languages.where((e) => e.visible).toList(), (e) => e.id)
         : const [],
     certificates: config.kind == SectionKind.certificates
-        ? keep(profile.certificates, (e) => e.id)
+        ? keep(
+            profile.certificates.where((e) => e.visible).toList(),
+            (e) => e.id,
+          )
         : const [],
     courses: config.kind == SectionKind.courses
-        ? keep(profile.courses, (e) => e.id)
+        ? keep(profile.courses.where((e) => e.visible).toList(), (e) => e.id)
         : const [],
     awards: config.kind == SectionKind.awards
-        ? keep(profile.awards, (e) => e.id)
+        ? keep(profile.awards.where((e) => e.visible).toList(), (e) => e.id)
         : const [],
     volunteer: config.kind == SectionKind.volunteer
-        ? keep(profile.volunteer, (e) => e.id)
+        ? keep(profile.volunteer.where((e) => e.visible).toList(), (e) => e.id)
         : const [],
     publications: config.kind == SectionKind.publications
-        ? keep(profile.publications, (e) => e.id)
+        ? keep(
+            profile.publications.where((e) => e.visible).toList(),
+            (e) => e.id,
+          )
         : const [],
     references: config.kind == SectionKind.references
-        ? keep(profile.references, (e) => e.id)
+        ? keep(profile.references.where((e) => e.visible).toList(), (e) => e.id)
         : const [],
     projects: config.kind == SectionKind.projects
         ? keep(projects, (p) => p.id)
@@ -294,7 +355,7 @@ List<CustomEntry> _resolveCustomEntries(
   for (final custom in profile.customSections) {
     if (custom.id != config.customSectionId) continue;
     final kept = custom.entries
-        .where((e) => !hiddenIds.contains(e.id))
+        .where((e) => e.visible && !hiddenIds.contains(e.id))
         .toList();
     return config.applyOrder(kept, (e) => e.id);
   }
@@ -312,6 +373,9 @@ DocumentDesign atsSafeDesign(DocumentDesign design) => design.copyWith(
     avatarShape: AvatarShape.hidden,
     showContactIcons: false,
     contactInline: true,
+    contactArrangement: 'multiRow',
+    showContactLabels: false,
+    identityArrangement: 'stacked',
     dividerStyle: DividerStyle.none,
     showSectionIcons: false,
   ),

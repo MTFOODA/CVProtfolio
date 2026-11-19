@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import 'strings_ar.dart';
 import 'strings_en.dart';
+import 'ui_strings_ar.dart';
 
 /// Supported application locales.
 const List<Locale> supportedLocales = [Locale('en'), Locale('ar')];
@@ -40,6 +41,33 @@ abstract final class AppStrings {
     return value;
   }
 
+  static final _uiArabic = <String, String>{
+    for (final entry in enStrings.entries)
+      if (arStrings.containsKey(entry.key)) entry.value: arStrings[entry.key]!,
+    ...uiArabicStrings,
+  };
+
+  static String ui(String languageCode, String text) {
+    if (languageCode != 'ar') return text;
+    if (text.endsWith(' (existing font)')) {
+      return '${text.substring(0, text.length - 16)} (${ui(languageCode, 'existing font')})';
+    }
+    if (RegExp(r'^[0-9.+ -]+ ?pt$').hasMatch(text)) {
+      return text.replaceFirst(RegExp(r' ?pt$'), ' \u0646\u0642\u0637\u0629');
+    }
+    if (RegExp(r'^[0-9.+ -]+ ?mm$').hasMatch(text)) {
+      return text.replaceFirst(RegExp(r' ?mm$'), ' \u0645\u0645');
+    }
+    final translated = _uiArabic[text];
+    if (translated != null) return translated;
+    for (final prefix in ['Icon: ', 'Decrease ', 'Increase ']) {
+      if (text.startsWith(prefix)) {
+        return '${_uiArabic[prefix] ?? prefix}${ui(languageCode, text.substring(prefix.length))}';
+      }
+    }
+    return text;
+  }
+
   /// `true` when [languageCode] is right-to-left.
   static bool isRtl(String languageCode) => languageCode == 'ar';
 }
@@ -48,6 +76,8 @@ abstract final class AppStrings {
 extension AppStringsContext on BuildContext {
   /// Current locale language code.
   String get languageCode => Localizations.localeOf(this).languageCode;
+
+  String ui(String text) => AppStrings.ui(languageCode, text);
 
   /// Resolves a localised string.
   String tr(String key, {Map<String, String>? args}) =>

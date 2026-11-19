@@ -35,18 +35,28 @@ import 'package:supabase_flutter/supabase_flutter.dart'
     hide AuthException, AuthUser;
 
 import 'auth_service.dart';
+import 'auth_redirect.dart';
+import 'recovery_url.dart';
 
 /// Supabase-backed authentication with Google identity.
 class SupabaseAuthService implements AuthService {
-  SupabaseAuthService(this._config);
+  SupabaseAuthService(this._config, {SupabaseClient? client})
+    : _injectedClient = client;
 
   final AppConfig _config;
+  final SupabaseClient? _injectedClient;
 
   /// `true` once [GoogleSignIn.instance.initialize] has completed. The plugin
   /// documents that initialization must happen exactly once.
   bool _googleInitialized = false;
+  Future<void>? _googleInitialization;
+  bool _recoveringPassword =
+      kIsWeb && Uri.base.queryParameters['auth'] == 'recovery';
 
-  SupabaseClient get _client => Supabase.instance.client;
+  @override
+  bool get isRecoveringPassword => _recoveringPassword;
+
+  SupabaseClient get _client => _injectedClient ?? Supabase.instance.client;
 
   @override
   AuthUser? get currentUser {
@@ -57,6 +67,11 @@ class SupabaseAuthService implements AuthService {
   @override
   Stream<AuthUser?> get authStateChanges =>
       _client.auth.onAuthStateChange.map((state) {
+        if (state.event == AuthChangeEvent.passwordRecovery) {
+          _recoveringPassword = true;
+        } else if (state.event == AuthChangeEvent.signedOut) {
+          _recoveringPassword = false;
+        }
         final user = state.session?.user;
         return user == null ? null : _mapUser(user);
       });
@@ -69,7 +84,10 @@ class SupabaseAuthService implements AuthService {
 
   /// Web redirect flow. No native Google plugin is used on web.
   Future<AuthUser> _signInWeb() async {
-    final started = await _client.auth.signInWithOAuth(OAuthProvider.google);
+    final started = await _client.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: webAuthRedirect(Uri.base),
+    );
     if (!started) {
       throw const AuthException('Google sign-in did not start');
     }
@@ -81,6 +99,61 @@ class SupabaseAuthService implements AuthService {
     return _mapUser(session.user);
   }
 
+  @override
+  Future<AuthUser?> registerWithEmail({
+    required String email,
+    required String password,
+    required String fullName,
+  }) async {
+    final response = await _client.auth.signUp(
+      email: email.trim(),
+      password: password,
+      data: {'full_name': fullName.trim()},
+      emailRedirectTo: kIsWeb ? webAuthRedirect(Uri.base) : null,
+    );
+    final user = response.user;
+    if (user == null) {
+      throw const AuthException('Registration failed: no user returned');
+    }
+    // Confirm-email projects return a user without an authenticated session.
+    // Keep the app signed out until the confirmation flow establishes one.
+    return response.session == null ? null : _mapUser(user);
+  }
+
+  @override
+  Future<AuthUser> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _client.auth.signInWithPassword(
+      email: email.trim(),
+      password: password,
+    );
+    final user = response.user;
+    if (user == null) {
+      throw const AuthException('Invalid email or password.');
+    }
+    return _mapUser(user);
+  }
+
+  @override
+  Future<void> resetPassword(String email) async {
+    await _client.auth.resetPasswordForEmail(
+      email.trim(),
+      redirectTo: kIsWeb ? webAuthRedirect(Uri.base, recovery: true) : null,
+    );
+  }
+
+  @override
+  Future<void> updatePassword(String password) async {
+    if (_client.auth.currentSession == null) {
+      throw const AuthException('A valid recovery session is required');
+    }
+    await _client.auth.updateUser(UserAttributes(password: password));
+    _recoveringPassword = false;
+    clearRecoveryUrl();
+  }
+
   /// Native Google sign-in used on Android and iOS.
   Future<AuthUser> _signInNative() async {
     await _ensureGoogleInitialized();
@@ -88,7 +161,11 @@ class SupabaseAuthService implements AuthService {
     final GoogleSignInAccount googleUser;
     try {
       googleUser = await GoogleSignIn.instance.authenticate();
-    } on GoogleSignInException {
+    } on GoogleSignInException catch (error) {
+      if (error.code != GoogleSignInExceptionCode.canceled &&
+          error.code != GoogleSignInExceptionCode.interrupted) {
+        rethrow;
+      }
       throw const AuthException(
         'Google sign-in was cancelled',
         cancelled: true,
@@ -114,7 +191,10 @@ class SupabaseAuthService implements AuthService {
 
   Future<void> _ensureGoogleInitialized() async {
     if (_googleInitialized) return;
+    await (_googleInitialization ??= _initializeGoogle());
+  }
 
+  Future<void> _initializeGoogle() async {
     // Turn two silent failure modes into actionable messages: a platform the
     // plugin does not cover, and a client ID that was never supplied.
     if (!kIsWeb &&
@@ -135,15 +215,20 @@ class SupabaseAuthService implements AuthService {
       );
     }
 
-    await GoogleSignIn.instance.initialize(
-      clientId: _config.googleIosClientId.isEmpty
-          ? null
-          : _config.googleIosClientId,
-      serverClientId: _config.googleWebClientId.isEmpty
-          ? null
-          : _config.googleWebClientId,
-    );
-    _googleInitialized = true;
+    try {
+      await GoogleSignIn.instance.initialize(
+        clientId: _config.googleIosClientId.isEmpty
+            ? null
+            : _config.googleIosClientId,
+        serverClientId: _config.googleWebClientId.isEmpty
+            ? null
+            : _config.googleWebClientId,
+      );
+      _googleInitialized = true;
+    } catch (_) {
+      _googleInitialization = null;
+      rethrow;
+    }
   }
 
   /// The build-time client ID the running platform cannot sign in without.
@@ -201,6 +286,8 @@ class SupabaseAuthService implements AuthService {
       }
     }
     await _client.auth.signOut();
+    _recoveringPassword = false;
+    clearRecoveryUrl();
   }
 
   AuthUser _mapUser(User user) => AuthUser(

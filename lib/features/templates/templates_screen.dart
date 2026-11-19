@@ -1,3 +1,6 @@
+import '../../core/design/app_icons.dart';
+
+import 'package:cv_portfolio_maker/core/l10n/ui_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +12,7 @@ import 'package:cv_portfolio_maker/core/domain/document_entity.dart';
 import 'package:cv_portfolio_maker/core/domain/enums.dart';
 import 'package:cv_portfolio_maker/core/l10n/app_strings.dart';
 import 'package:cv_portfolio_maker/core/theme/app_tokens.dart';
+import 'package:cv_portfolio_maker/core/widgets/app_motion.dart';
 import 'package:cv_portfolio_maker/core/utils/utils.dart';
 
 /// Browse the built-in template catalogue and start a document from one.
@@ -20,9 +24,13 @@ class TemplatesScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(context.tr('templates'))),
       body: GridView.builder(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 320,
+        padding: AppSpacing.pagePadding(context),
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent:
+              MediaQuery.sizeOf(context).width < AppBreakpoints.compact
+              ? 600
+              : 380,
+          mainAxisExtent: 260,
           mainAxisSpacing: AppSpacing.md,
           crossAxisSpacing: AppSpacing.md,
           childAspectRatio: 1.4,
@@ -30,9 +38,13 @@ class TemplatesScreen extends ConsumerWidget {
         itemCount: builtinTemplates.length,
         itemBuilder: (context, index) {
           final template = builtinTemplates[index];
-          return _TemplateCard(
-            template: template,
-            onTap: () => _useTemplate(context, ref, template),
+          return AppReveal(
+            child: AppInteractive(
+              child: _TemplateCard(
+                template: template,
+                onTap: () => _useTemplate(context, ref, template),
+              ),
+            ),
           );
         },
       ),
@@ -47,8 +59,8 @@ class TemplatesScreen extends ConsumerWidget {
     final type = await showDialog<DocumentType>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(template.name),
-        content: Text(template.description),
+        title: UiText(template.name),
+        content: UiText(template.description),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(DocumentType.cv),
@@ -110,13 +122,13 @@ class _TemplateCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              UiText(
                 template.name,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: AppSpacing.xs),
               Expanded(
-                child: Text(
+                child: UiText(
                   template.description,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
@@ -124,7 +136,7 @@ class _TemplateCard extends StatelessWidget {
               Align(
                 alignment: Alignment.bottomRight,
                 child: Icon(
-                  Icons.arrow_forward,
+                  AppIcons.next,
                   size: 18,
                   color: Theme.of(context).colorScheme.primary,
                 ),

@@ -31,10 +31,67 @@ class LocalAuthService implements AuthService {
   Stream<AuthUser?> get authStateChanges => const Stream.empty();
 
   @override
+  bool get isRecoveringPassword => false;
+
+  @override
+  Future<void> updatePassword(String password) async {
+    throw const AuthException('Password recovery requires Supabase');
+  }
+
+  @override
   Future<AuthUser> signInWithGoogle() async {
-    // Local mode has no Google provider configured; fall back to a local
-    // identity so the product remains explorable.
-    return signInLocally();
+    // Only the explicit guest action may create a local identity. Treating a
+    // Google button as guest sign-in hides a misconfigured Android build.
+    throw const AuthException('Google sign-in requires Supabase');
+  }
+
+  @override
+  Future<AuthUser> registerWithEmail({
+    required String email,
+    required String password,
+    required String fullName,
+  }) async {
+    // Local mode: create a deterministic local identity.
+    final prefs = await _preferences;
+    final existingId = prefs.getString(_kUserId);
+    final id = existingId ?? 'local-user';
+    final user = AuthUser(
+      id: id,
+      email: email.trim(),
+      displayName: fullName.trim(),
+    );
+    await prefs.setString(_kUserId, user.id);
+    await prefs.setString(_kEmail, user.email);
+    await prefs.setString(_kName, user.displayName ?? '');
+    _cached = user;
+    return user;
+  }
+
+  @override
+  Future<AuthUser> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    // Local mode: treat any email/password as valid if a session exists,
+    // otherwise create one.
+    final prefs = await _preferences;
+    final existingId = prefs.getString(_kUserId);
+    final id = existingId ?? 'local-user';
+    final storedEmail = prefs.getString(_kEmail) ?? '';
+    final user = AuthUser(
+      id: id,
+      email: storedEmail.isNotEmpty ? storedEmail : email.trim(),
+      displayName: prefs.getString(_kName),
+    );
+    await prefs.setString(_kUserId, user.id);
+    await prefs.setString(_kEmail, user.email);
+    _cached = user;
+    return user;
+  }
+
+  @override
+  Future<void> resetPassword(String email) async {
+    throw const AuthException('Password recovery requires Supabase');
   }
 
   @override

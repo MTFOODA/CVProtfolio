@@ -16,10 +16,16 @@ import 'package:cv_portfolio_maker/core/export/export_fonts.dart';
 
 /// Resolved styling values for one PDF export.
 class PdfStyle {
-  PdfStyle({required this.design, required this.fonts, required this.ats});
+  PdfStyle({
+    required this.design,
+    required this.fonts,
+    this.nameFonts,
+    required this.ats,
+  });
 
   final DocumentDesign design;
   final ExportFontSet fonts;
+  final ExportFontSet? nameFonts;
 
   /// `true` for the ATS-friendly output, which trades styling for
   /// machine-readability (no accent colour, no images, no divider ornaments).
@@ -57,7 +63,8 @@ class PdfStyle {
   }
 
   /// Page margin in points.
-  double get margin => spacing.pageMargin + spacing.pagePadding;
+  double get margin => spacing.resolvedHorizontalMargin;
+  double get verticalMargin => spacing.resolvedVerticalMargin;
 
   /// Left column ratio, clamped exactly like the on-screen layout engine.
   double get leftRatio {
@@ -71,8 +78,8 @@ class PdfStyle {
   /// When only the base-14 fonts could be resolved it also replaces the
   /// characters those fonts cannot draw, so the page never shows `.notdef`
   /// boxes. Embedded TrueType fonts keep the original characters.
-  String text(String input) {
-    final prepared = prepareForPdf(input, rtlBase: rtl);
+  String text(String input, {bool? rtlBase}) {
+    final prepared = prepareForPdf(input, rtlBase: rtlBase ?? rtl);
     return fonts.isFallback ? transliterateForBaseFonts(prepared) : prepared;
   }
 
@@ -98,7 +105,9 @@ class PdfStyle {
     fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
     fontStyle: italic ? pw.FontStyle.italic : pw.FontStyle.normal,
     fontSize: size ?? typography.bodyFontSize,
-    lineSpacing: height ?? typography.bodyLineHeight,
+    lineSpacing:
+        ((height ?? typography.bodyLineHeight) - 1) *
+        (size ?? typography.bodyFontSize),
     color: color ?? bodyColor,
     letterSpacing: letterSpacing ?? 0,
   );
@@ -113,22 +122,30 @@ class PdfStyle {
   );
 
   /// Style for the document title (the person's name).
-  pw.TextStyle nameStyle() => style(
-    bold: true,
-    size: typography.headingFontSize * typography.headingScale,
-    color: headingColor,
-    height: typography.headingLineHeight,
-  );
+  pw.TextStyle nameStyle() =>
+      style(
+        bold: true,
+        size: typography.headingFontSize * typography.headingScale,
+        color: headingColor,
+        height: typography.headingLineHeight,
+        letterSpacing: typography.headingLetterSpacing,
+      ).copyWith(
+        fontNormal: (nameFonts ?? fonts).regular,
+        fontBold: (nameFonts ?? fonts).bold,
+        fontItalic: (nameFonts ?? fonts).italic,
+        fontBoldItalic: (nameFonts ?? fonts).boldItalic,
+      );
 
   /// Style for the professional title under the name.
   pw.TextStyle subtitleStyle() => style(
     bold: true,
-    size: typography.bodyFontSize + 1,
+    size: typography.resolvedProfessionalTitleFontSize,
     color: secondaryColor,
   );
 
   /// Style for an entry heading such as a job title.
-  pw.TextStyle entryStyle() => style(bold: true);
+  pw.TextStyle entryStyle() =>
+      style(bold: true, size: typography.resolvedEntryHeaderFontSize);
 
   /// Style for supporting text under an entry.
   pw.TextStyle metaStyle() =>

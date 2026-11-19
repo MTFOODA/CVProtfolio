@@ -168,8 +168,8 @@ void main() {
   });
 
   group('RTL layout', () {
-    /// The bullet row rendered for the first experience description.
-    Future<pw.Row> bulletRow({required bool rtl}) async {
+    /// The spanning description retains its marker and reading-side alignment.
+    Future<pw.Text> bulletText({required bool rtl}) async {
       final resolved = ResolvedDocument.resolve(
         document: CvDocument(
           id: 'd1',
@@ -198,26 +198,29 @@ void main() {
         (s) => s.experiences.isNotEmpty,
       );
 
-      for (final widget in renderer.build(section)) {
-        if (widget is pw.Padding && widget.child is pw.Column) {
-          final rows = (widget.child! as pw.Column).children
-              .whereType<pw.Row>();
-          if (rows.isNotEmpty) return rows.first;
-        }
-      }
-      throw StateError('the experience block produced no bullet row');
+      return renderer
+          .build(section)
+          .whereType<pw.SizedBox>()
+          .map((box) => box.child)
+          .whereType<pw.Text>()
+          .firstWhere(
+            (text) =>
+                (text.text as pw.TextSpan).text!.contains('instruction set'),
+          );
     }
 
     test('the marker leads a left-to-right line', () async {
-      final row = await bulletRow(rtl: false);
-      expect(row.children.first, isA<pw.SizedBox>());
-      expect(row.children.last, isA<pw.Expanded>());
+      final text = await bulletText(rtl: false);
+      expect((text.text as pw.TextSpan).text, startsWith('- '));
+      expect(text.textAlign, pw.TextAlign.left);
+      expect(text.overflow, pw.TextOverflow.span);
     });
 
     test('the marker trails a right-to-left line', () async {
-      final row = await bulletRow(rtl: true);
-      expect(row.children.first, isA<pw.Expanded>());
-      expect(row.children.last, isA<pw.SizedBox>());
+      final text = await bulletText(rtl: true);
+      expect((text.text as pw.TextSpan).text, endsWith(' -'));
+      expect(text.textAlign, pw.TextAlign.right);
+      expect(text.overflow, pw.TextOverflow.span);
     });
 
     test('headings and entry blocks align to the reading side', () async {
@@ -260,20 +263,18 @@ void main() {
 
         // The section heading spans the width (so `textAlign` has room) and
         // carries the reading direction's alignment.
-        final heading = widgets.first;
+        final heading = widgets.whereType<pw.SizedBox>().firstWhere(
+          (box) => box.child is pw.Text,
+        );
         expect(heading, isA<pw.SizedBox>());
-        final headingText = (heading as pw.SizedBox).child;
+        final headingText = heading.child;
         expect(headingText, isA<pw.Text>());
         expect((headingText! as pw.Text).textAlign, style.bodyAlign);
 
         // …and the entry block must stretch, otherwise its lines keep their
         // intrinsic width, `textAlign` has nothing to align, and right-to-left
         // titles hug the left margin.
-        final column = widgets
-            .whereType<pw.Padding>()
-            .map((p) => p.child)
-            .whereType<pw.Column>()
-            .first;
+        final column = widgets.whereType<pw.Column>().first;
         expect(column.crossAxisAlignment, pw.CrossAxisAlignment.stretch);
       }
     });

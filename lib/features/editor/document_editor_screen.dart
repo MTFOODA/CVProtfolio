@@ -1,4 +1,12 @@
+import '../../core/design/app_icons.dart';
+
+import 'package:cv_portfolio_maker/core/l10n/ui_text.dart';
 import 'package:flutter/material.dart';
+
+import '../../core/widgets/app_surfaces.dart';
+
+import '../cv_design/cv_design_settings_screen.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:cv_portfolio_maker/app/providers.dart';
@@ -60,7 +68,9 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
 
   CvDocument? _document;
   UserProfile? _profile;
-  DocumentDesign _design = const DocumentDesign();
+  final _designDraft = ValueNotifier<DocumentDesign>(const DocumentDesign());
+  DocumentDesign get _design => _designDraft.value;
+  set _design(DocumentDesign value) => _designDraft.value = value;
   late final TextEditingController _titleController;
 
   bool _loading = true;
@@ -78,38 +88,54 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _designDraft.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    final userId = ref.read(sessionProvider2).value?.id;
-    if (userId == null) {
-      setState(() {
-        _loading = false;
-        _loadError = context.tr('errorGeneric');
-      });
-      return;
-    }
-    final doc = await ref
-        .read(backendProvider)
-        .loadDocument(widget.documentId, userId);
-    if (!mounted) return;
-    if (doc == null) {
-      setState(() {
-        _loading = false;
-        _loadError = context.tr('notFoundTitle');
-      });
-      return;
-    }
-    final profile = await ref.read(backendProvider).loadProfile(userId);
-    if (!mounted) return;
     setState(() {
-      _document = doc;
-      _profile = profile;
-      _design = doc.design;
-      _titleController.text = doc.title;
-      _loading = false;
+      _loading = true;
+      _loadError = null;
     });
+    try {
+      final userId = (await ref.read(sessionProvider2.future))?.id;
+      if (userId == null) {
+        setState(() {
+          _loading = false;
+          _loadError = context.tr('errorGeneric');
+        });
+        return;
+      }
+      final doc = await ref
+          .read(backendProvider)
+          .loadDocument(widget.documentId, userId);
+      if (!mounted) return;
+      if (doc == null) {
+        setState(() {
+          _loading = false;
+          _loadError = context.tr('notFoundTitle');
+        });
+        return;
+      }
+      final profile =
+          doc.profileSnapshot ??
+          await ref.read(backendProvider).loadProfile(userId);
+      if (!mounted) return;
+      setState(() {
+        _document = doc;
+        _profile = profile;
+        _design = doc.design;
+        _titleController.text = doc.title;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadError = context.tr('errorGeneric');
+        });
+      }
+    }
   }
 
   /// Persists the current editor state.
@@ -117,6 +143,7 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
   /// Returns `true` only when the write actually succeeded; callers must not
   /// report success otherwise.
   Future<bool> _save() async {
+    if (_saving) return false;
     final doc = _document;
     if (doc == null) return false;
     setState(() => _saving = true);
@@ -273,12 +300,35 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: AppLoading());
     }
     if (_loadError != null) {
       return Scaffold(
         appBar: AppBar(),
-        body: Center(child: Text(_loadError!)),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_loadError!),
+              TextButton(onPressed: _load, child: Text(context.tr('retry'))),
+            ],
+          ),
+        ),
+      );
+    }
+    if (_document!.type == DocumentType.cv) {
+      return CvDesignSettingsScreen(
+        document: _document!,
+        profile: _profile ?? UserProfile(id: _document!.ownerId),
+        design: _designDraft,
+        onSave: _save,
+        onExport: _openExport,
+        titleController: _titleController,
+        additionalControls: ExpansionTile(
+          key: PageStorageKey('cv-document-layout-${_document!.id}'),
+          title: const UiText('Document layout & sections'),
+          children: [_buildControls(embedded: true)],
+        ),
       );
     }
     return Scaffold(
@@ -286,20 +336,18 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
         title: Text(_document!.title),
         actions: [
           IconButton(
-            icon: Icon(
-              _previewMode ? Icons.edit_outlined : Icons.visibility_outlined,
-            ),
+            icon: Icon(_previewMode ? AppIcons.edit : AppIcons.preview),
             tooltip: _previewMode ? context.tr('edit') : context.tr('preview'),
             onPressed: () => setState(() => _previewMode = !_previewMode),
           ),
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf_outlined),
+            icon: const Icon(AppIcons.pictureAsPdf),
             tooltip: context.tr('export'),
             onPressed: _saving ? null : _openExport,
           ),
           TextButton.icon(
             onPressed: _saving ? null : _save,
-            icon: const Icon(Icons.save_outlined),
+            icon: const Icon(AppIcons.save),
             label: Text(_saving ? context.tr('saving') : context.tr('save')),
           ),
         ],
@@ -311,7 +359,7 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
   Widget _buildPreview() {
     final resolved = _previewResolved();
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: AppSpacing.pagePadding(context),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 860),
@@ -342,10 +390,14 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
     );
   }
 
-  Widget _buildControls() {
+  Widget _buildControls({bool embedded = false}) {
     final resolver = defaultTitleResolver(context.languageCode);
     return ReorderableListView(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      // This scroll offset must not share the expansion tile's boolean state.
+      key: PageStorageKey('document-section-order-${_document!.id}'),
+      shrinkWrap: embedded,
+      physics: embedded ? const NeverScrollableScrollPhysics() : null,
+      padding: AppSpacing.pagePadding(context),
       buildDefaultDragHandles: true,
       onReorderItem: _reorderSections,
       header: Column(
@@ -370,8 +422,10 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
         children: [
           _sectionHeader(context, 'addSection'),
           _buildAddSectionChips(context, resolver),
-          _sectionHeader(context, 'designControls'),
-          _buildDesignControls(context),
+          if (!embedded) ...[
+            _sectionHeader(context, 'designControls'),
+            _buildDesignControls(context),
+          ],
           const SizedBox(height: AppSpacing.xl),
         ],
       ),
@@ -423,19 +477,19 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
   }
 
   static IconData _sectionIcon(SectionKind kind) => switch (kind) {
-    SectionKind.pageBreak => Icons.insert_page_break_outlined,
-    SectionKind.custom => Icons.tune,
-    SectionKind.projects => Icons.folder_outlined,
-    SectionKind.skills => Icons.star_outline,
-    SectionKind.languages => Icons.translate,
-    SectionKind.certificates => Icons.workspace_premium_outlined,
-    SectionKind.courses => Icons.menu_book_outlined,
-    SectionKind.awards => Icons.emoji_events_outlined,
-    SectionKind.volunteer => Icons.volunteer_activism_outlined,
-    SectionKind.publications => Icons.article_outlined,
-    SectionKind.references => Icons.people_outline,
-    SectionKind.education => Icons.school_outlined,
-    _ => Icons.work_outline,
+    SectionKind.pageBreak => AppIcons.insertPageBreak,
+    SectionKind.custom => AppIcons.customize,
+    SectionKind.projects => AppIcons.projects,
+    SectionKind.skills => AppIcons.skills,
+    SectionKind.languages => AppIcons.language,
+    SectionKind.certificates => AppIcons.certificate,
+    SectionKind.courses => AppIcons.courses,
+    SectionKind.awards => AppIcons.emojiEvents,
+    SectionKind.volunteer => AppIcons.volunteerActivism,
+    SectionKind.publications => AppIcons.document,
+    SectionKind.references => AppIcons.peopleOutline,
+    SectionKind.education => AppIcons.education,
+    _ => AppIcons.portfolio,
   };
 
   Widget _sectionHeader(BuildContext context, String labelKey) {
@@ -521,78 +575,110 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
         ),
         child: Column(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    resolver(section.kind),
-                    style: section.visible
-                        ? Theme.of(context).textTheme.bodyLarge
-                        : Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Theme.of(context).disabledColor,
-                          ),
-                  ),
-                ),
-                Tooltip(
-                  message: canPlace ? '' : context.tr('columnPlacementHint'),
-                  child: DropdownButton<ColumnSlot>(
-                    value: section.slot,
-                    onChanged: canPlace
-                        ? (slot) {
-                            if (slot != null) {
-                              _updateSection(
-                                index,
-                                (s) => s.copyWith(slot: slot),
-                              );
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final heading = Text(
+                  section.resolvedTitle((kind) {
+                    if (kind == SectionKind.custom) {
+                      for (final custom
+                          in _profile?.customSections ??
+                              const <CustomSection>[]) {
+                        if (custom.id == section.customSectionId) {
+                          return custom.title;
+                        }
+                      }
+                    }
+                    return resolver(kind);
+                  }),
+                  style: section.visible
+                      ? Theme.of(context).textTheme.bodyLarge
+                      : Theme.of(context).textTheme.bodyLarge
+                            ?.copyWith(color: Theme.of(context).disabledColor),
+                );
+                final actions = <Widget>[
+                  Tooltip(
+                    message: canPlace ? '' : context.tr('columnPlacementHint'),
+                    child: DropdownButton<ColumnSlot>(
+                      value: section.slot,
+                      onChanged: canPlace
+                          ? (slot) {
+                              if (slot != null) {
+                                _updateSection(
+                                  index,
+                                  (s) => s.copyWith(slot: slot),
+                                );
+                              }
                             }
-                          }
+                          : null,
+                      items: const [
+                        DropdownMenuItem(
+                          value: ColumnSlot.fullWidth,
+                          child: UiText('Full'),
+                        ),
+                        DropdownMenuItem(
+                          value: ColumnSlot.left,
+                          child: UiText('Left'),
+                        ),
+                        DropdownMenuItem(
+                          value: ColumnSlot.right,
+                          child: UiText('Right'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: section.visible,
+                    onChanged: (_) => _updateSection(
+                      index,
+                      (s) => s.copyWith(visible: !s.visible),
+                    ),
+                  ),
+                  Tooltip(
+                    message: context.tr('dragToReorder'),
+                    child: Icon(
+                      AppIcons.dragIndicator,
+                      color: Theme.of(context).disabledColor,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(AppIcons.arrowUpward),
+                    onPressed: index > 0 ? () => _moveSection(index, -1) : null,
+                  ),
+                  IconButton(
+                    icon: const Icon(AppIcons.arrowDownward),
+                    onPressed: index < _design.sections.length - 1
+                        ? () => _moveSection(index, 1)
                         : null,
-                    items: const [
-                      DropdownMenuItem(
-                        value: ColumnSlot.fullWidth,
-                        child: Text('Full'),
+                  ),
+                  IconButton(
+                    tooltip: context.tr('removeSection'),
+                    icon: const Icon(AppIcons.delete),
+                    onPressed: () => _removeSection(index),
+                  ),
+                ];
+                if (constraints.maxWidth < 520) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      heading,
+                      const SizedBox(height: AppSpacing.sm),
+                      Wrap(
+                        spacing: AppSpacing.xs,
+                        runSpacing: AppSpacing.xs,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: actions,
                       ),
-                      DropdownMenuItem(
-                        value: ColumnSlot.left,
-                        child: Text('Left'),
-                      ),
-                      DropdownMenuItem(
-                        value: ColumnSlot.right,
-                        child: Text('Right'),
-                      ),
+                      const SizedBox(height: AppSpacing.sm),
                     ],
-                  ),
-                ),
-                Switch(
-                  value: section.visible,
-                  onChanged: (_) => _updateSection(
-                    index,
-                    (s) => s.copyWith(visible: !s.visible),
-                  ),
-                ),
-                Tooltip(
-                  message: context.tr('dragToReorder'),
-                  child: Icon(
-                    Icons.drag_indicator,
-                    color: Theme.of(context).disabledColor,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.arrow_upward),
-                  onPressed: index > 0 ? () => _moveSection(index, -1) : null,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.arrow_downward),
-                  onPressed: index < _design.sections.length - 1
-                      ? () => _moveSection(index, 1)
-                      : null,
-                ),
-                IconButton(
-                  tooltip: context.tr('removeSection'),
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _removeSection(index),
-                ),
-              ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: heading),
+                    ...actions,
+                  ],
+                );
+              },
             ),
             if (section.kind != SectionKind.pageBreak)
               TextFormField(
@@ -627,7 +713,7 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
         const SizedBox(height: AppSpacing.lg),
         OutlinedButton.icon(
           onPressed: _resetToTemplate,
-          icon: const Icon(Icons.restart_alt),
+          icon: const Icon(AppIcons.restartAlt),
           label: Text(context.tr('resetToTemplate')),
         ),
       ],
@@ -864,7 +950,7 @@ class _DocumentEditorScreenState extends ConsumerState<DocumentEditorScreen> {
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Contact inline'),
+          title: const UiText('Contact inline'),
           value: presentation.contactInline,
           onChanged: (v) => setState(
             () => _design = _design.copyWith(

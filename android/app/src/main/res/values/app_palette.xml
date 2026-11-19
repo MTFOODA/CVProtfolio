@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Native startup counterparts of lib/core/theme/app_tokens.dart. -->
+<resources>
+    <color name="app_launch_start">#F1F7FB</color>
+    <color name="app_launch_center">#D9EDF7</color>
+    <color name="app_launch_end">#A9DDF5</color>
+</resources>

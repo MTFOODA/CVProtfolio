@@ -32,10 +32,39 @@ abstract interface class AuthService {
   /// Emits session changes (null on sign-out).
   Stream<AuthUser?> get authStateChanges;
 
+  /// Whether the current session was established by a password recovery link.
+  bool get isRecoveringPassword;
+
+  /// Completes password recovery using an authenticated recovery session.
+  Future<void> updatePassword(String password);
+
   /// Starts Google Sign-In.
   ///
   /// Throws [AuthException] when the flow is cancelled or fails.
   Future<AuthUser> signInWithGoogle();
+
+  /// Registers a new account with email and password.
+  ///
+  /// Returns null when email confirmation is required and no session exists.
+  /// Throws [AuthException] when registration fails.
+  Future<AuthUser?> registerWithEmail({
+    required String email,
+    required String password,
+    required String fullName,
+  });
+
+  /// Signs in with email and password.
+  ///
+  /// Throws [AuthException] when credentials are invalid.
+  Future<AuthUser> signInWithEmail({
+    required String email,
+    required String password,
+  });
+
+  /// Sends a password reset email to [email].
+  ///
+  /// Throws [AuthException] when the reset cannot be sent.
+  Future<void> resetPassword(String email);
 
   /// Signs in as a local, offline user. No external credentials required.
   Future<AuthUser> signInLocally({String email = 'local@example.com'});

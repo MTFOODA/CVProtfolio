@@ -6,6 +6,8 @@ library;
 import 'package:cv_portfolio_maker/core/domain/document_models.dart';
 import 'package:cv_portfolio_maker/core/domain/enums.dart';
 
+import 'profile_models.dart';
+
 /// A user-owned CV or portfolio.
 class CvDocument {
   const CvDocument({
@@ -15,11 +17,13 @@ class CvDocument {
     this.type = DocumentType.cv,
     this.design = const DocumentDesign(),
     this.includedProjectIds,
+    this.profileSnapshot,
     this.shareMode = ShareMode.privateDraft,
     this.published = false,
     this.publicSlug,
     this.allowPdfDownload = true,
     this.isRtl = false,
+    this.accessPasswordHash,
     this.createdAtIso,
     this.updatedAtIso,
     this.version = 1,
@@ -38,6 +42,9 @@ class CvDocument {
   /// Profile entry ids this document includes. `null` means "all visible".
   final List<String>? includedProjectIds;
 
+  /// Saved CV content. Portfolios keep reading the owner's live profile.
+  final UserProfile? profileSnapshot;
+
   final ShareMode shareMode;
   final bool published;
 
@@ -49,6 +56,13 @@ class CvDocument {
 
   /// The document's own language/direction, independent of the UI locale.
   final bool isRtl;
+
+  /// Salted hash of the visitor access password, or `null` when the document
+  /// is not password protected.
+  ///
+  /// The plaintext password is never stored. Verification happens in the
+  /// repository/backend layer, so a client-side bypass cannot grant access.
+  final String? accessPasswordHash;
 
   final String? createdAtIso;
   final String? updatedAtIso;
@@ -63,11 +77,13 @@ class CvDocument {
     DocumentType? type,
     DocumentDesign? design,
     List<String>? Function()? includedProjectIds,
+    UserProfile? profileSnapshot,
     ShareMode? shareMode,
     bool? published,
     String? Function()? publicSlug,
     bool? allowPdfDownload,
     bool? isRtl,
+    String? Function()? accessPasswordHash,
     String? Function()? createdAtIso,
     String? Function()? updatedAtIso,
     int? version,
@@ -80,11 +96,15 @@ class CvDocument {
     includedProjectIds: includedProjectIds == null
         ? this.includedProjectIds
         : includedProjectIds(),
+    profileSnapshot: profileSnapshot ?? this.profileSnapshot,
     shareMode: shareMode ?? this.shareMode,
     published: published ?? this.published,
     publicSlug: publicSlug == null ? this.publicSlug : publicSlug(),
     allowPdfDownload: allowPdfDownload ?? this.allowPdfDownload,
     isRtl: isRtl ?? this.isRtl,
+    accessPasswordHash: accessPasswordHash == null
+        ? this.accessPasswordHash
+        : accessPasswordHash(),
     createdAtIso: createdAtIso == null ? this.createdAtIso : createdAtIso(),
     updatedAtIso: updatedAtIso == null ? this.updatedAtIso : updatedAtIso(),
     version: version ?? this.version,
@@ -100,6 +120,14 @@ class CvDocument {
             Map<String, dynamic>.from(json['design'] as Map),
           )
         : const DocumentDesign(),
+    profileSnapshot:
+        (json['profileSnapshot'] ?? json['profile_snapshot']) is Map
+        ? UserProfile.fromJson(
+            Map<String, dynamic>.from(
+              (json['profileSnapshot'] ?? json['profile_snapshot']) as Map,
+            ),
+          )
+        : null,
     includedProjectIds:
         (json['includedProjectIds'] ?? json['included_project_ids']) is List
         ? List<String>.from(
@@ -118,6 +146,8 @@ class CvDocument {
         (json['allowPdfDownload'] ?? json['allow_pdf_download'] as bool?) ??
         true,
     isRtl: (json['isRtl'] ?? json['is_rtl'] as bool?) ?? false,
+    accessPasswordHash:
+        (json['accessPasswordHash'] ?? json['access_password_hash']) as String?,
     createdAtIso: (json['createdAtIso'] ?? json['created_at']) as String?,
     updatedAtIso: (json['updatedAtIso'] ?? json['updated_at']) as String?,
     version: (json['version'] as num?)?.toInt() ?? 1,
@@ -130,11 +160,13 @@ class CvDocument {
     'type': type.name,
     'design': design.toJson(),
     'includedProjectIds': includedProjectIds,
+    'profileSnapshot': profileSnapshot?.toJson(),
     'shareMode': shareMode.name,
     'published': published,
     'publicSlug': publicSlug,
     'allowPdfDownload': allowPdfDownload,
     'isRtl': isRtl,
+    'accessPasswordHash': accessPasswordHash,
     'createdAtIso': createdAtIso,
     'updatedAtIso': updatedAtIso,
     'version': version,

@@ -125,6 +125,9 @@ class TypographyConfig {
   const TypographyConfig({
     this.headingFont = 'inter',
     this.bodyFont = 'inter',
+    this.nameFont,
+    this.professionalTitleFontSize,
+    this.entryHeaderFontSize,
     this.bodyFontSize = 10.5,
     this.headingFontSize = 18.0,
     this.sectionTitleFontSize = 14.0,
@@ -137,6 +140,16 @@ class TypographyConfig {
 
   final String headingFont;
   final String bodyFont;
+
+  /// Null preserves legacy heading-font behavior; 'body' follows bodyFont.
+  final String? nameFont;
+  final double? professionalTitleFontSize;
+  final double? entryHeaderFontSize;
+  String get resolvedNameFont =>
+      nameFont == 'body' ? bodyFont : nameFont ?? headingFont;
+  double get resolvedProfessionalTitleFontSize =>
+      professionalTitleFontSize ?? bodyFontSize + 1;
+  double get resolvedEntryHeaderFontSize => entryHeaderFontSize ?? bodyFontSize;
   final double bodyFontSize;
   final double headingFontSize;
   final double sectionTitleFontSize;
@@ -149,6 +162,9 @@ class TypographyConfig {
   TypographyConfig copyWith({
     String? headingFont,
     String? bodyFont,
+    String? nameFont,
+    double? professionalTitleFontSize,
+    double? entryHeaderFontSize,
     double? bodyFontSize,
     double? headingFontSize,
     double? sectionTitleFontSize,
@@ -160,6 +176,10 @@ class TypographyConfig {
   }) => TypographyConfig(
     headingFont: headingFont ?? this.headingFont,
     bodyFont: bodyFont ?? this.bodyFont,
+    nameFont: nameFont ?? this.nameFont,
+    professionalTitleFontSize:
+        professionalTitleFontSize ?? this.professionalTitleFontSize,
+    entryHeaderFontSize: entryHeaderFontSize ?? this.entryHeaderFontSize,
     bodyFontSize: bodyFontSize ?? this.bodyFontSize,
     headingFontSize: headingFontSize ?? this.headingFontSize,
     sectionTitleFontSize: sectionTitleFontSize ?? this.sectionTitleFontSize,
@@ -176,6 +196,10 @@ class TypographyConfig {
   ) => TypographyConfig(
     headingFont: '${json['headingFont'] ?? 'inter'}',
     bodyFont: '${json['bodyFont'] ?? 'inter'}',
+    nameFont: json['nameFont'] as String?,
+    professionalTitleFontSize: (json['professionalTitleFontSize'] as num?)
+        ?.toDouble(),
+    entryHeaderFontSize: (json['entryHeaderFontSize'] as num?)?.toDouble(),
     bodyFontSize: (json['bodyFontSize'] as num?)?.toDouble() ?? 10.5,
     headingFontSize: (json['headingFontSize'] as num?)?.toDouble() ?? 18.0,
     sectionTitleFontSize:
@@ -191,6 +215,9 @@ class TypographyConfig {
   Map<String, dynamic> toJson() => {
     'headingFont': headingFont,
     'bodyFont': bodyFont,
+    'nameFont': nameFont,
+    'professionalTitleFontSize': professionalTitleFontSize,
+    'entryHeaderFontSize': entryHeaderFontSize,
     'bodyFontSize': bodyFontSize,
     'headingFontSize': headingFontSize,
     'sectionTitleFontSize': sectionTitleFontSize,
@@ -274,6 +301,8 @@ class ColorConfig {
 class SpacingConfig {
   const SpacingConfig({
     this.pageMargin = 40.0,
+    this.horizontalMargin,
+    this.verticalMargin,
     this.pagePadding = 0.0,
     this.sectionSpacing = 16.0,
     this.itemSpacing = 8.0,
@@ -285,6 +314,14 @@ class SpacingConfig {
 
   /// Extra inner padding for the document surface.
   final double pageMargin;
+
+  /// Points, independently adjustable; null preserves legacy pageMargin.
+  final double? horizontalMargin;
+  final double? verticalMargin;
+  double get resolvedHorizontalMargin =>
+      (horizontalMargin ?? pageMargin) + pagePadding;
+  double get resolvedVerticalMargin =>
+      (verticalMargin ?? pageMargin) + pagePadding;
   final double pagePadding;
   final double sectionSpacing;
   final double itemSpacing;
@@ -299,6 +336,8 @@ class SpacingConfig {
 
   SpacingConfig copyWith({
     double? pageMargin,
+    double? horizontalMargin,
+    double? verticalMargin,
     double? pagePadding,
     double? sectionSpacing,
     double? itemSpacing,
@@ -308,6 +347,8 @@ class SpacingConfig {
     bool? isRtl,
   }) => SpacingConfig(
     pageMargin: pageMargin ?? this.pageMargin,
+    horizontalMargin: horizontalMargin ?? this.horizontalMargin,
+    verticalMargin: verticalMargin ?? this.verticalMargin,
     pagePadding: pagePadding ?? this.pagePadding,
     sectionSpacing: sectionSpacing ?? this.sectionSpacing,
     itemSpacing: itemSpacing ?? this.itemSpacing,
@@ -319,6 +360,8 @@ class SpacingConfig {
 
   factory SpacingConfig.fromJson(Map<String, dynamic> json) => SpacingConfig(
     pageMargin: (json['pageMargin'] as num?)?.toDouble() ?? 40.0,
+    horizontalMargin: (json['horizontalMargin'] as num?)?.toDouble(),
+    verticalMargin: (json['verticalMargin'] as num?)?.toDouble(),
     pagePadding: (json['pagePadding'] as num?)?.toDouble() ?? 0.0,
     sectionSpacing: (json['sectionSpacing'] as num?)?.toDouble() ?? 16.0,
     itemSpacing: (json['itemSpacing'] as num?)?.toDouble() ?? 8.0,
@@ -330,6 +373,8 @@ class SpacingConfig {
 
   Map<String, dynamic> toJson() => {
     'pageMargin': pageMargin,
+    'horizontalMargin': horizontalMargin,
+    'verticalMargin': verticalMargin,
     'pagePadding': pagePadding,
     'sectionSpacing': sectionSpacing,
     'itemSpacing': itemSpacing,
@@ -410,6 +455,12 @@ class PresentationConfig {
     this.contactInline = false,
     this.showSectionIcons = true,
     this.headerStyle = 'split',
+    this.contactArrangement,
+    this.contactIconStyle = 'plain',
+    this.contactIconSize,
+    this.showContactLabels = false,
+    this.identityArrangement = 'stacked',
+    this.dateLocationPosition = 'belowTitle',
     this.projectCardStyle = 'card',
     this.projectImageAspectRatio = 1.6,
     this.showProjectTechChips = true,
@@ -428,6 +479,20 @@ class PresentationConfig {
 
   /// Header style: `left`, `center` or `split`.
   final String headerStyle;
+  final String? contactArrangement;
+  String get resolvedContactArrangement =>
+      contactArrangement ?? (contactInline ? 'compact' : 'multiRow');
+  final String contactIconStyle;
+  final double? contactIconSize;
+  final bool showContactLabels;
+  final String identityArrangement;
+
+  double resolvedContactIconSize(double bodySize) {
+    final value = contactIconSize ?? bodySize;
+    return value.isFinite ? value.clamp(8, 24).toDouble() : 12;
+  }
+
+  final String dateLocationPosition;
 
   /// Portfolio project card style: `card`, `flat` or `gallery`.
   final String projectCardStyle;
@@ -444,6 +509,12 @@ class PresentationConfig {
     bool? contactInline,
     bool? showSectionIcons,
     String? headerStyle,
+    String? contactArrangement,
+    String? contactIconStyle,
+    double? contactIconSize,
+    bool? showContactLabels,
+    String? identityArrangement,
+    String? dateLocationPosition,
     String? projectCardStyle,
     double? projectImageAspectRatio,
     bool? showProjectTechChips,
@@ -455,6 +526,12 @@ class PresentationConfig {
     contactInline: contactInline ?? this.contactInline,
     showSectionIcons: showSectionIcons ?? this.showSectionIcons,
     headerStyle: headerStyle ?? this.headerStyle,
+    contactArrangement: contactArrangement ?? this.contactArrangement,
+    contactIconStyle: contactIconStyle ?? this.contactIconStyle,
+    contactIconSize: contactIconSize ?? this.contactIconSize,
+    showContactLabels: showContactLabels ?? this.showContactLabels,
+    identityArrangement: identityArrangement ?? this.identityArrangement,
+    dateLocationPosition: dateLocationPosition ?? this.dateLocationPosition,
     projectCardStyle: projectCardStyle ?? this.projectCardStyle,
     projectImageAspectRatio:
         projectImageAspectRatio ?? this.projectImageAspectRatio,
@@ -472,6 +549,12 @@ class PresentationConfig {
         contactInline: json['contactInline'] as bool? ?? false,
         showSectionIcons: json['showSectionIcons'] as bool? ?? true,
         headerStyle: '${json['headerStyle'] ?? 'split'}',
+        contactArrangement: json['contactArrangement'] as String?,
+        contactIconStyle: '${json['contactIconStyle'] ?? 'plain'}',
+        contactIconSize: (json['contactIconSize'] as num?)?.toDouble(),
+        showContactLabels: json['showContactLabels'] as bool? ?? false,
+        identityArrangement: '${json['identityArrangement'] ?? 'stacked'}',
+        dateLocationPosition: '${json['dateLocationPosition'] ?? 'belowTitle'}',
         projectCardStyle: '${json['projectCardStyle'] ?? 'card'}',
         projectImageAspectRatio:
             (json['projectImageAspectRatio'] as num?)?.toDouble() ?? 1.6,
@@ -486,6 +569,12 @@ class PresentationConfig {
     'contactInline': contactInline,
     'showSectionIcons': showSectionIcons,
     'headerStyle': headerStyle,
+    'contactArrangement': contactArrangement,
+    'contactIconStyle': contactIconStyle,
+    'contactIconSize': contactIconSize,
+    'showContactLabels': showContactLabels,
+    'identityArrangement': identityArrangement,
+    'dateLocationPosition': dateLocationPosition,
     'projectCardStyle': projectCardStyle,
     'projectImageAspectRatio': projectImageAspectRatio,
     'showProjectTechChips': showProjectTechChips,

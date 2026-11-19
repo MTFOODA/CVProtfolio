@@ -38,3 +38,38 @@ screen should also mention it.
   lookup would use, because the app does not rely on that internal convention).
   Keep the file name unchanged if you replace the font with a newer release.
 * `pubspec.yaml` — `assets: - assets/google_fonts/`.
+
+
+## CV design fonts
+
+The CV Design Settings feature uses offline Inter, Lora, Roboto, and Noto
+Naskh Arabic in Flutter, PDF and editable Word exports. Regular and bold
+Latin faces are bundled; Noto Naskh Arabic supplies complex-script fallback.
+Word embeds these licensed font files using ECMA-376 font obfuscation.
+
+- Inter regular/bold: Google Fonts CSS API, family `Inter`, weights 400/700.
+  Copyright 2020 The Inter Project Authors; license: `Inter-OFL.txt`.
+- Lora regular/bold: Google Fonts CSS API, family `Lora`, weights 400/700.
+  Copyright 2011 The Lora Project Authors; license: `Lora-OFL.txt`.
+- Roboto regular/bold: the installed Flutter SDK's redistributable material
+  fonts; license: `Roboto-LICENSE.txt`.
+- Contact icons: Google `material-design-icons` repository,
+  `font/MaterialIcons-Regular.ttf`, saved as `ContactIcons-Regular.ttf`.
+  Apache 2.0 license: `MaterialIcons-LICENSE.txt`.
+
+Legacy document font identifiers retain the existing PDF download/fallback
+path. The new settings dropdown offers only the fully bundled families.
+
+ContactBrands-Regular.ttf is the unmodified Font Awesome Free 6.7.2 Brands font.
+Source: https://github.com/FortAwesome/Font-Awesome/tree/6.7.2/webfonts
+SIL OFL license: FontAwesome-LICENSE.txt. Used for GitHub and LinkedIn contact logos.
+
+
+## Modernized interface fonts
+
+UI text uses Inter 400/500/600 for English and Tajawal 400/500/600 for Arabic.
+`Inter-Variable.ttf` is the unmodified Google Fonts `ofl/inter/Inter[opsz,wght].ttf`
+asset and supplies 500/600; its OFL is `Inter-OFL.txt`. Tajawal Regular, Medium
+and Bold are unmodified Google Fonts `ofl/tajawal/` assets, licensed in
+`Tajawal-OFL.txt`. Tajawal has no discrete 600 face: its Bold face supplies the
+600 UI request. Existing export font files and family identifiers are retained.

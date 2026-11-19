@@ -380,12 +380,13 @@ void main() {
           reason: 'relationship target $target is missing',
         );
       }
-      // Two distinct links, two distinct relationship ids.
+      // Two project destinations and the email composer are distinct targets.
       final ids = RegExp(r'Id="(rIdLink\d+)"')
           .allMatches(rels)
           .map((m) => m.group(1))
           .toSet();
-      expect(ids.length, 2);
+      expect(ids.length, 3);
+      expect(rels, contains('Target="mailto:ada@example.com"'));
     });
 
     test('namespaces and content types are declared for every part', () {

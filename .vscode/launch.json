@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "CV: Supabase",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "cwd": "${workspaceFolder}",
+      "toolArgs": ["--dart-define-from-file=dart_defines.json"]
+    },
+    {
+      "name": "CV: Offline",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "cwd": "${workspaceFolder}",
+      "toolArgs": ["--dart-define=OFFLINE_MODE=true"]
+    }
+  ]
+}

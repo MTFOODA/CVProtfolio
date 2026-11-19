@@ -7,7 +7,11 @@
 /// another owner's records.
 library;
 
-import 'dart:typed_data';
+import '../utils/project_media.dart';
+
+import 'package:flutter/services.dart';
+
+import '../design/cv_design_options.dart';
 
 import 'package:pdf/pdf.dart' as pdf;
 import 'package:pdf/widgets.dart' as pw;
@@ -106,7 +110,7 @@ class DocumentExporter {
       languageCode: languageCode,
     );
     final fonts = await _fonts.load(
-      headingFont: resolved.design.typography.headingFont,
+      headingFont: resolved.design.typography.bodyFont,
       needsArabic: documentNeedsArabicFont(
         resolved,
         languageCode: languageCode,
@@ -139,7 +143,7 @@ class DocumentExporter {
       languageCode: languageCode,
     );
     final fonts = await _fonts.load(
-      headingFont: resolved.design.typography.headingFont,
+      headingFont: resolved.design.typography.bodyFont,
       needsArabic: documentNeedsArabicFont(
         resolved,
         languageCode: languageCode,
@@ -158,6 +162,17 @@ class DocumentExporter {
       throw ExportException(blocking.code, args: blocking.args);
     }
 
+    final nameFonts =
+        resolved.design.typography.resolvedNameFont ==
+            resolved.design.typography.bodyFont
+        ? fonts
+        : await _fonts.load(
+            headingFont: resolved.design.typography.resolvedNameFont,
+            needsArabic: documentNeedsArabicFont(
+              resolved,
+              languageCode: languageCode,
+            ),
+          );
     final images = await _prefetchImages(resolved);
 
     final PdfBuildResult built;
@@ -167,6 +182,7 @@ class DocumentExporter {
           resolved: resolved,
           mode: mode,
           fonts: fonts,
+          nameFonts: nameFonts,
           images: images,
           languageCode: languageCode,
         ),
@@ -201,10 +217,14 @@ class DocumentExporter {
     final avatar = resolved.details.avatarUrl?.trim() ?? '';
     if (avatar.isNotEmpty) urls.add(avatar);
     for (final section in resolved.sections) {
+      for (final entry in section.customEntries) {
+        final image = entry.imageUrl?.trim() ?? '';
+        if (image.isNotEmpty) urls.add(image);
+      }
       for (final project in section.projects) {
         for (final media in project.media) {
           final trimmed = media.trim();
-          if (trimmed.isNotEmpty) urls.add(trimmed);
+          if (trimmed.isNotEmpty && !isProjectVideo(trimmed)) urls.add(trimmed);
         }
       }
     }
@@ -251,9 +271,58 @@ class DocumentExporter {
       final blocking = validation.errors.first;
       throw ExportException(blocking.code, args: blocking.args);
     }
+    final fontFiles = <String, Uint8List>{};
+    final families = {
+      resolved.design.typography.bodyFont,
+      resolved.design.typography.resolvedNameFont,
+      'notoNaskhArabic',
+    };
+    final assets = <String>{
+      for (final id in families)
+        if (cvFontAssets[id] case final pair?) ...[pair.$1, pair.$2],
+      if (resolved.design.presentation.showContactIcons) ...[
+        'ContactIcons-Regular.ttf',
+        'ContactBrands-Regular.ttf',
+      ],
+    };
+    for (final asset in assets) {
+      try {
+        fontFiles[asset] = (await rootBundle.load('assets/google_fonts/$asset'))
+            .buffer
+            .asUint8List();
+      } on Object {
+        /* Legacy fonts remain portable Word font references. */
+      }
+    }
+    final entryImages = <String, Uint8List>{};
+    final loader = _images;
+    if (loader != null) {
+      final sources = resolved.sections
+          .expand((section) => section.customEntries)
+          .map((entry) => entry.imageUrl ?? '')
+          .where((source) => source.isNotEmpty)
+          .toSet();
+      for (final source in sources) {
+        try {
+          final bytes = await loader(source);
+          if (bytes != null &&
+              bytes.isNotEmpty &&
+              bytes.length <= maxEmbeddedImageBytes) {
+            entryImages[source] = bytes;
+          }
+        } catch (_) {
+          /* Missing optional media does not discard editable text. */
+        }
+      }
+    }
     return (
       bytes: const DocxDocumentBuilder().build(
-        DocxBuildRequest(resolved: resolved, languageCode: languageCode),
+        DocxBuildRequest(
+          resolved: resolved,
+          languageCode: languageCode,
+          fontFiles: fontFiles,
+          images: entryImages,
+        ),
       ),
       fileName: docxFileName(document.title),
     );

@@ -286,7 +286,7 @@ CvDocument _document({
         const PageConfig(
           showPageNumbers: true,
           showHeader: true,
-          headerText: 'CV & Portfolio Studio',
+          headerText: 'CV & Portfolio Builder',
           showFooter: true,
           footerText: 'Generated sample',
         ),

@@ -10,6 +10,8 @@ library;
 
 import 'dart:typed_data';
 
+import '../../core/domain/enums.dart';
+
 import 'package:cv_portfolio_maker/core/domain/document_entity.dart';
 import 'package:cv_portfolio_maker/core/domain/profile_models.dart';
 import 'package:cv_portfolio_maker/data/repositories.dart';
@@ -31,6 +33,7 @@ abstract final class Buckets {
 class SupabaseBackend
     implements
         ProfileRepository,
+        CvDraftRepository,
         DocumentRepository,
         ShareRepository,
         MediaRepository,
@@ -49,6 +52,53 @@ class SupabaseBackend
       throw const UnauthorizedException('You must be signed in');
     }
     return id;
+  }
+
+  void _requireOwner(String userId) {
+    if (_requireUserId != userId) {
+      throw const UnauthorizedException('The active account has changed');
+    }
+  }
+
+  @override
+  Future<CvBuilderDraft?> loadCvDraft(String userId, String draftKey) async {
+    _requireUserId;
+    final row = await _client
+        .from('cv_builder_drafts')
+        .select('payload')
+        .eq('owner_id', userId)
+        .eq('draft_key', draftKey)
+        .maybeSingle();
+    return row == null
+        ? null
+        : CvBuilderDraft.fromJson(
+            Map<String, dynamic>.from(row['payload'] as Map),
+          );
+  }
+
+  @override
+  Future<void> saveCvDraft(
+    String userId,
+    String draftKey,
+    CvBuilderDraft draft,
+  ) async {
+    _requireUserId;
+    await _client.from('cv_builder_drafts').upsert({
+      'owner_id': userId,
+      'draft_key': draftKey,
+      'payload': draft.toJson(),
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  @override
+  Future<void> deleteCvDraft(String userId, String draftKey) async {
+    _requireUserId;
+    await _client
+        .from('cv_builder_drafts')
+        .delete()
+        .eq('owner_id', userId)
+        .eq('draft_key', draftKey);
   }
 
   // ---------------------------------------------------------------- profiles
@@ -107,6 +157,11 @@ class SupabaseBackend
   @override
   Future<CvDocument> saveDocument(CvDocument document) async {
     _requireUserId;
+    if (document.type == DocumentType.cv && document.profileSnapshot == null) {
+      document = document.copyWith(
+        profileSnapshot: await loadProfile(document.ownerId),
+      );
+    }
     final payload = _documentToRow(document);
     final row = await _client
         .from(Tables.documents)
@@ -133,6 +188,7 @@ class SupabaseBackend
     'title': document.title,
     'type': document.type.name,
     'design': document.design.toJson(),
+    'profile_snapshot': document.profileSnapshot?.toJson(),
     'included_project_ids': document.includedProjectIds,
     'share_mode': document.shareMode.name,
     'published': document.published,
@@ -142,6 +198,38 @@ class SupabaseBackend
     'version': document.version,
     'updated_at': DateTime.now().toIso8601String(),
   };
+
+  @override
+  Future<CvDocument> setAccessPassword({
+    required String documentId,
+    required String userId,
+    required String? password,
+  }) async {
+    _requireUserId;
+    // The hash is produced by Postgres (bcrypt); this client never sees or
+    // stores the plaintext beyond this single request.
+    if (password == null) {
+      await _client.rpc<dynamic>(
+        'clear_portfolio_password',
+        params: {'p_document_id': documentId},
+      );
+    } else {
+      await _client.rpc<dynamic>(
+        'set_portfolio_password',
+        params: {'p_document_id': documentId, 'p_password': password},
+      );
+    }
+    final row = await _client
+        .from(Tables.documents)
+        .select()
+        .eq('id', documentId)
+        .eq('owner_id', userId)
+        .maybeSingle();
+    if (row == null) {
+      throw const UnauthorizedException('Document not found for this user');
+    }
+    return CvDocument.fromJson(Map<String, dynamic>.from(row));
+  }
 
   // ------------------------------------------------------------------ shares
 
@@ -195,8 +283,20 @@ class SupabaseBackend
     String slug,
   ) {
     // Resolved without a session: the security-definer RPC validates the slug,
-    // publication state and returns only publishable content.
+    // publication state and returns only publishable content. Password-protected
+    // documents are refused by the RPC and must use the password resolver.
     return _resolveViaRpc('resolve_share_by_slug', {'p_slug': slug});
+  }
+
+  @override
+  Future<({CvDocument document, UserProfile profile})?>
+  resolveBySlugWithPassword(String slug, String password) {
+    // The comparison happens inside the SECURITY DEFINER function; a wrong
+    // password returns null exactly like an unknown slug.
+    return _resolveViaRpc('resolve_share_with_password', {
+      'p_slug': slug,
+      'p_password': password,
+    });
   }
 
   @override
@@ -223,10 +323,76 @@ class SupabaseBackend
     final response = await _client.rpc<dynamic>(fn, params: params);
     if (response == null) return null;
     final map = Map<String, dynamic>.from(response as Map);
-    return (
-      document: CvDocument.fromJson(Map<String, dynamic>.from(map['document'])),
-      profile: UserProfile.fromJson(Map<String, dynamic>.from(map['profile'])),
+    var document = CvDocument.fromJson(
+      Map<String, dynamic>.from(map['document']),
     );
+    var profile =
+        (document.type == DocumentType.cv ? document.profileSnapshot : null) ??
+        UserProfile.fromJson(Map<String, dynamic>.from(map['profile']));
+    final hasStoredMedia =
+        [
+          profile.details.avatarUrl,
+          ...profile.projects.expand((p) => p.media),
+          ...profile.customSections.expand(
+            (section) => section.entries.map((entry) => entry.imageUrl),
+          ),
+        ].whereType<String>().any(
+          (path) =>
+              path.startsWith('${profile.id}/') ||
+              // Older profiles persisted public or expired signed URLs for the
+              // private bucket. The server verifies their origin and signs them again.
+              (Uri.tryParse(path)?.path.contains('/object/') == true &&
+                  Uri.tryParse(path)?.path.contains('/${Buckets.media}/') ==
+                      true),
+        );
+    if (hasStoredMedia) {
+      // A separate server boundary re-verifies the same share credentials before
+      // signing media. Never ask visitors to authenticate as the profile owner.
+      try {
+        final result = await _client.functions.invoke(
+          'share-media',
+          body: {'resolver': fn, 'params': params},
+        );
+        final data = result.data;
+        if (data is Map && data['urls'] is Map) {
+          final urls = Map<String, String>.from(data['urls'] as Map);
+          profile = profile.copyWith(
+            details: profile.details.copyWith(
+              avatarUrl:
+                  urls[profile.details.avatarUrl] ?? profile.details.avatarUrl,
+            ),
+            customSections: [
+              for (final section in profile.customSections)
+                section.copyWith(
+                  entries: [
+                    for (final entry in section.entries)
+                      entry.copyWith(
+                        imageUrl: urls[entry.imageUrl] ?? entry.imageUrl,
+                      ),
+                  ],
+                ),
+            ],
+            projects: [
+              for (final project in profile.projects)
+                project.copyWith(
+                  media: [for (final path in project.media) urls[path] ?? path],
+                ),
+            ],
+          );
+        }
+      } catch (_) {
+        // Text remains viewable when the media function is unavailable. Media
+        // widgets report unavailable playback; storage policies stay private.
+      }
+    }
+    if (document.type == DocumentType.cv && document.profileSnapshot != null) {
+      document = document.copyWith(profileSnapshot: profile);
+    }
+    // Only a successfully resolved share grants a view. Failed passwords,
+    // expired links and private drafts never reach this point.
+    final shareId = map['shareId'] as String?;
+    if (shareId != null) await recordView(shareId);
+    return (document: document, profile: profile);
   }
 
   @override
@@ -261,7 +427,9 @@ class SupabaseBackend
           Uint8List.fromList(bytes),
           fileOptions: FileOptions(contentType: contentType, upsert: false),
         );
-    final url = _client.storage.from(Buckets.media).getPublicUrl(path);
+    final url = await _client.storage
+        .from(Buckets.media)
+        .createSignedUrl(path, 3600);
     return StoredObject(storagePath: path, url: url, sizeBytes: bytes.length);
   }
 
@@ -299,8 +467,11 @@ class SupabaseBackend
 
   @override
   Future<void> deleteAccount(String userId) async {
-    _requireUserId;
+    _requireOwner(userId);
     await deleteAllForUser(userId);
+    // The storage call can span an account switch. The RPC always deletes
+    // the authenticated account, so recheck the intended owner before it.
+    _requireOwner(userId);
     // Cascading FKs remove documents, sections and shares server-side.
     await _client.rpc<dynamic>('delete_own_account');
   }

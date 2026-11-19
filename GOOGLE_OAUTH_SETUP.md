@@ -8,6 +8,11 @@ redirect, no deep link).
 Everything below uses placeholders. Replace them with your own values and never
 commit the filled-in file.
 
+For the Android APK configuration issue and this project's actual package/SHA-1,
+see [`docs/ANDROID_GOOGLE_LOGIN.md`](docs/ANDROID_GOOGLE_LOGIN.md). On Windows,
+`powershell -NoProfile -ExecutionPolicy Bypass -File tools/build_android.ps1`
+builds a release APK with the connection file and refuses missing settings.
+
 | Placeholder | What it is | Where you get it |
 | --- | --- | --- |
 | `YOUR_GOOGLE_WEB_CLIENT_ID` | Web OAuth client ID (`…apps.googleusercontent.com`) | Google Cloud → Credentials |
@@ -41,7 +46,7 @@ identity from the ID token.
 **APIs & Services → Credentials → Create credentials → OAuth client ID →
 Application type: Web application.**
 
-- Name: anything, for example `CV & Portfolio Studio — web`.
+- Name: anything, for example `CV & Portfolio Builder — web`.
 - **Authorised JavaScript origins**: the origin you serve the Flutter web build
   from, e.g. `http://localhost:8080` and, later, `https://your-site.example`.
 - **Authorised redirect URIs**: the Supabase callback (see step 4), i.e.

@@ -5,7 +5,13 @@
 /// are surfaced distinctly.
 library;
 
+import '../../core/design/app_icons.dart';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../app/statistics.dart';
+import '../../core/widgets/app_motion.dart';
 
 import 'package:cv_portfolio_maker/core/domain/document_entity.dart';
 import 'package:cv_portfolio_maker/core/domain/enums.dart';
@@ -16,6 +22,7 @@ import 'package:cv_portfolio_maker/core/export/export_validation.dart';
 import 'package:cv_portfolio_maker/core/export/image_bytes.dart';
 import 'package:cv_portfolio_maker/core/l10n/app_strings.dart';
 import 'package:cv_portfolio_maker/core/theme/app_tokens.dart';
+import 'package:cv_portfolio_maker/data/local/export_counter.dart';
 
 /// Shared exporter. Images are fetched natively and embedded when available.
 final DocumentExporter documentExporter = DocumentExporter(
@@ -42,6 +49,7 @@ Future<void> showExportSheet(
 }) {
   return showModalBottomSheet<void>(
     context: context,
+    sheetAnimationStyle: AppMotion.sheetStyle(context),
     isScrollControlled: true,
     showDragHandle: true,
     builder: (context) => _ExportSheet(
@@ -52,7 +60,7 @@ Future<void> showExportSheet(
   );
 }
 
-class _ExportSheet extends StatefulWidget {
+class _ExportSheet extends ConsumerStatefulWidget {
   const _ExportSheet({
     required this.document,
     required this.profile,
@@ -64,10 +72,10 @@ class _ExportSheet extends StatefulWidget {
   final ExportMode initialMode;
 
   @override
-  State<_ExportSheet> createState() => _ExportSheetState();
+  ConsumerState<_ExportSheet> createState() => _ExportSheetState();
 }
 
-class _ExportSheetState extends State<_ExportSheet> {
+class _ExportSheetState extends ConsumerState<_ExportSheet> {
   late ExportMode _mode = widget.initialMode;
   ExportValidationResult? _validation;
   bool _validating = true;
@@ -76,6 +84,7 @@ class _ExportSheetState extends State<_ExportSheet> {
   Map<String, String>? _errorArgs;
   String? _statusKey;
   Map<String, String>? _statusArgs;
+  int _validationRevision = 0;
 
   @override
   void initState() {
@@ -84,27 +93,41 @@ class _ExportSheetState extends State<_ExportSheet> {
   }
 
   Future<void> _validate() async {
+    final revision = ++_validationRevision;
+    final mode = _mode;
     setState(() => _validating = true);
     try {
       final result = await documentExporter.validate(
         document: widget.document,
         profile: widget.profile,
-        mode: _mode,
+        mode: mode,
         languageCode: context.languageCode,
       );
-      if (!mounted) return;
+      if (!mounted || revision != _validationRevision) return;
       setState(() {
         _validation = result;
         _validating = false;
       });
     } on Object {
-      if (!mounted) return;
+      if (!mounted || revision != _validationRevision) return;
       setState(() => _validating = false);
+    }
+  }
+
+  Future<void> _recordDownload() async {
+    try {
+      await recordExport(widget.document.ownerId);
+      if (mounted) {
+        ref.invalidate(downloadCountProvider(widget.document.ownerId));
+      }
+    } catch (_) {
+      // The file was delivered successfully even if local statistics fail.
     }
   }
 
   /// Generates the PDF and hands it to the platform.
   Future<void> _run({required bool preview}) async {
+    if (_busy) return;
     setState(() {
       _busy = true;
       _errorKey = null;
@@ -135,6 +158,12 @@ class _ExportSheetState extends State<_ExportSheet> {
 
       final messageKey = deliveryMessageKey(outcome);
       messenger.showSnackBar(SnackBar(content: Text(context.tr(messageKey))));
+      // Only a completed delivery counts, so the dashboard statistic reflects
+      // real exports rather than attempts.
+      if (outcome.completed && !preview) {
+        await _recordDownload();
+      }
+      if (!mounted) return;
       setState(() {
         _busy = false;
         _statusKey = null;
@@ -167,6 +196,7 @@ class _ExportSheetState extends State<_ExportSheet> {
   /// typed as WordprocessingML on Android instead of the PDF media type the
   /// shared PDF route advertises.
   Future<void> _runDocx() async {
+    if (_busy) return;
     setState(() {
       _busy = true;
       _errorKey = null;
@@ -190,6 +220,9 @@ class _ExportSheetState extends State<_ExportSheet> {
       if (!mounted) return;
       final messageKey = deliveryMessageKey(outcome);
       messenger.showSnackBar(SnackBar(content: Text(context.tr(messageKey))));
+      if (outcome.completed) {
+        await _recordDownload();
+      }
     } on ExportException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -236,12 +269,12 @@ class _ExportSheetState extends State<_ExportSheet> {
                   ButtonSegment(
                     value: ExportMode.designed,
                     label: Text(context.tr('exportModeDesigned')),
-                    icon: const Icon(Icons.palette_outlined),
+                    icon: const Icon(AppIcons.palette),
                   ),
                   ButtonSegment(
                     value: ExportMode.atsFriendly,
                     label: Text(context.tr('exportModeAts')),
-                    icon: const Icon(Icons.checklist_outlined),
+                    icon: const Icon(AppIcons.checklist),
                   ),
                 ],
                 selected: {_mode},
@@ -303,20 +336,20 @@ class _ExportSheetState extends State<_ExportSheet> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _busy || blocked
+                      onPressed: _busy || _validating || blocked
                           ? null
                           : () => _run(preview: true),
-                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      icon: const Icon(AppIcons.pictureAsPdf),
                       label: Text(context.tr('exportPreview')),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: _busy || blocked
+                      onPressed: _busy || _validating || blocked
                           ? null
                           : () => _run(preview: false),
-                      icon: const Icon(Icons.ios_share),
+                      icon: const Icon(AppIcons.iosShare),
                       label: Text(context.tr('exportSaveShare')),
                     ),
                   ),
@@ -327,7 +360,7 @@ class _ExportSheetState extends State<_ExportSheet> {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: _busy || blocked ? null : _runDocx,
-                  icon: const Icon(Icons.description_outlined),
+                  icon: const Icon(AppIcons.document),
                   label: Text(context.tr('exportDocx')),
                 ),
               ),
@@ -360,9 +393,9 @@ class _ValidationList extends StatelessWidget {
               children: [
                 Icon(
                   switch (issue.level) {
-                    ExportIssueLevel.error => Icons.error_outline,
-                    ExportIssueLevel.warning => Icons.warning_amber_outlined,
-                    ExportIssueLevel.info => Icons.info_outline,
+                    ExportIssueLevel.error => AppIcons.errorOutline,
+                    ExportIssueLevel.warning => AppIcons.warningAmber,
+                    ExportIssueLevel.info => AppIcons.infoOutline,
                   },
                   size: 18,
                   color: switch (issue.level) {

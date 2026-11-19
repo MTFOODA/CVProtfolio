@@ -174,11 +174,13 @@ void main() {
       expect(text.trim(), isNotEmpty);
     });
 
-    test('includes the profile name, title and contact labels', () {
+    test('includes the profile name, title and contact values only', () {
       expect(text, contains('Ada Lovelace'));
       expect(text, contains('Mathematician'));
-      expect(text, contains('Email: ada@example.com'));
-      expect(text, contains('Phone: +44 20 7946 0000'));
+      expect(text, contains('ada@example.com'));
+      expect(text, contains('+44 20 7946 0000'));
+      expect(text, isNot(contains('Email:')));
+      expect(text, isNot(contains('Phone:')));
     });
 
     test('includes every section heading and entry', () {
@@ -332,8 +334,10 @@ void main() {
       );
       final text = extractPdfText(result.bytes);
 
-      expect(text, contains('Email: ada@example.com'));
-      expect(text, contains('Phone:'));
+      expect(text, contains('ada@example.com'));
+      expect(text, contains('+44 20 7946 0000'));
+      expect(text, isNot(contains('Email:')));
+      expect(text, isNot(contains('Phone:')));
     });
   });
 

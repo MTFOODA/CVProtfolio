@@ -32,6 +32,8 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/.wrangler/
+/node_modules/
 /test_out.txt
 /test_output.txt
 
@@ -50,6 +52,8 @@ android/app/google-services.json
 *.keystore
 key.properties
 *.pem
+# Downloaded Google OAuth credentials are setup inputs, not application assets.
+/google/
 
 # Symbolication related
 app.*.symbols

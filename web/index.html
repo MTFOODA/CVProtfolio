@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -17,22 +17,83 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#343A40">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CV &amp; Portfolio Builder">
+  <meta property="og:description" content="Your story. Moving forward. Build your CV and share your portfolio.">
+  <meta property="og:image" content="social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="CV &amp; Portfolio Studio">
+  <meta name="description" content="CV &amp; Portfolio Builder — design, build and share your professional story">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="CV &amp; Portfolio Studio">
+  <meta name="apple-mobile-web-app-title" content="CV &amp; Portfolio Builder">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>CV &amp; Portfolio Studio</title>
+  <title>CV &amp; Portfolio Builder</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    :root { color-scheme: light dark; --launch-bg: linear-gradient(135deg,#fff,#edf7fb 62%,#a9ddf5,#6cabdd); --paper: #f1f7fb; --ink: #202329; --muted: #506879; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); }
+    #launch { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center;
+      padding: 32px; background: var(--launch-bg); color: var(--ink); font: 16px/1.6 system-ui, sans-serif;
+      transition: opacity 240ms ease; }
+    .identity { width: min(100%, 420px); text-align: center; }
+    .identity img { width: 88px; height: 88px; border-radius: 22px; }
+    h1 { font-size: clamp(22px, 5vw, 28px); line-height: 1.3; margin: 24px 0 8px; letter-spacing: -.6px; }
+    p { color: var(--muted); margin: 0 0 32px; }
+    .track { width: 144px; height: 4px; background: #dce2e6; border-radius: 4px; margin: auto; overflow: hidden; }
+    .track::after { content: ''; display: block; width: 55%; height: 100%; border-radius: inherit; background: #6cabdd;
+      animation: loading 1.4s ease-in-out infinite alternate; }
+    @keyframes loading { from { transform: translateX(-80%); } to { transform: translateX(180%); } }
+    #retry { display: none; margin: 24px auto 0; border: 0; border-radius: 12px; padding: 14px 24px;
+      background: #6cabdd; color: #202329; font: 600 16px system-ui; cursor: pointer; }
+    #retry:focus-visible { outline: 3px solid #286d96; outline-offset: 4px; }
+    #launch.error .track { display: none; }
+    #launch.error #retry { display: block; }
+    @media (prefers-color-scheme: dark) { :root { --launch-bg: linear-gradient(135deg,#343a40,#49515a 50%,#626c76,#87929d); --paper: #343a40; --ink: #f3f4f6; --muted: #e0e9ef; } }
+    @media (prefers-reduced-motion: reduce) { #launch { transition: none; } .track::after { animation: none; width: 100%; } }
+  </style>
 </head>
 <body>
+  <div id="launch" role="status" aria-live="polite">
+    <div class="identity">
+      <img src="icons/Icon-192.png" alt="" width="88" height="88">
+      <h1>CV &amp; Portfolio Builder</h1>
+      <p id="launch-copy">Your story. Moving forward.</p>
+      <div class="track" aria-hidden="true"></div>
+      <button id="retry" type="button">Try again</button>
+    </div>
+  </div>
+  <noscript>This app needs JavaScript to build and display your portfolio. Please enable JavaScript in your browser.</noscript>
+  <script>
+    const launch = document.getElementById('launch');
+    if (navigator.language.startsWith('ar')) {
+      document.documentElement.lang = 'ar';
+      document.getElementById('launch-copy').textContent = 'حكايتك المهنية، بخطوة لقدّام.';
+      document.getElementById('retry').textContent = 'حاول مرة تانية';
+    }
+    document.getElementById('retry').addEventListener('click', () => location.reload());
+    window.addEventListener('flutter-first-frame', () => {
+      launch.style.opacity = '0';
+      launch.style.pointerEvents = 'none';
+      setTimeout(() => launch.remove(), 250);
+    }, { once: true });
+    window.showLaunchError = () => {
+      if (!launch.isConnected) return;
+      launch.classList.add('error');
+      document.getElementById('launch-copy').textContent = navigator.language.startsWith('ar')
+        ? 'التطبيق محمّلش. راجع الاتصال وحاول تاني.'
+        : 'The app could not load. Check your connection and try again.';
+    };
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
@@ -41,6 +102,6 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script src="flutter_bootstrap.js" async onerror="showLaunchError()"></script>
 </body>
 </html>

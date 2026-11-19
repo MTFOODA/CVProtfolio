@@ -6,8 +6,11 @@ library;
 
 import 'dart:io';
 
+import '../../core/domain/enums.dart';
+
 import 'package:cv_portfolio_maker/core/domain/document_entity.dart';
 import 'package:cv_portfolio_maker/core/domain/profile_models.dart';
+import 'package:cv_portfolio_maker/data/portfolio/password_hash.dart';
 import 'package:cv_portfolio_maker/data/repositories.dart';
 
 import 'local_store.dart';
@@ -16,6 +19,7 @@ import 'local_store.dart';
 class LocalBackend
     implements
         ProfileRepository,
+        CvDraftRepository,
         DocumentRepository,
         ShareRepository,
         MediaRepository,
@@ -34,6 +38,29 @@ class LocalBackend
   /// Exposes the store root so share resolution can scan all documents.
   Directory get rootDirectory => _store.rootDirectory;
 
+  String _draftScope(String userId, String key) => 'cv_draft_${userId}_$key';
+  @override
+  Future<CvBuilderDraft?> loadCvDraft(String userId, String draftKey) async {
+    final json = await _store.readMap(_draftScope(userId, draftKey));
+    return json == null ? null : CvBuilderDraft.fromJson(json);
+  }
+
+  @override
+  Future<void> saveCvDraft(
+    String userId,
+    String draftKey,
+    CvBuilderDraft draft,
+  ) {
+    if (draft.profile.id != userId) {
+      throw const UnauthorizedException('Draft owner mismatch');
+    }
+    return _store.writeMap(_draftScope(userId, draftKey), draft.toJson());
+  }
+
+  @override
+  Future<void> deleteCvDraft(String userId, String draftKey) =>
+      _store.remove(_draftScope(userId, draftKey));
+
   // ---------------------------------------------------------------- profiles
 
   @override
@@ -44,6 +71,23 @@ class LocalBackend
 
   @override
   Future<UserProfile> saveProfile(UserProfile profile) async {
+    // Freeze legacy CVs before replacing the shared profile.
+    final previous = await loadProfile(profile.id);
+    if (previous != null) {
+      final documents = await _store.readList(_documentScope(profile.id));
+      var changed = false;
+      for (var i = 0; i < documents.length; i++) {
+        final document = CvDocument.fromJson(documents[i]);
+        if (document.type == DocumentType.cv &&
+            document.profileSnapshot == null) {
+          documents[i] = document.copyWith(profileSnapshot: previous).toJson();
+          changed = true;
+        }
+      }
+      if (changed) {
+        await _store.writeList(_documentScope(profile.id), documents);
+      }
+    }
     await _store.writeMap(_profileScope(profile.id), profile.toJson());
     return profile;
   }
@@ -68,6 +112,11 @@ class LocalBackend
 
   @override
   Future<CvDocument> saveDocument(CvDocument document) async {
+    if (document.type == DocumentType.cv && document.profileSnapshot == null) {
+      document = document.copyWith(
+        profileSnapshot: await loadProfile(document.ownerId),
+      );
+    }
     final documents = await _store.readList(_documentScope(document.ownerId));
     final index = documents.indexWhere((d) => d['id'] == document.id);
     final json = document.toJson();
@@ -89,6 +138,26 @@ class LocalBackend
     final shares = await _store.readList(_shareKey);
     shares.removeWhere((s) => s['documentId'] == documentId);
     await _store.writeList(_shareKey, shares);
+  }
+
+  @override
+  Future<CvDocument> setAccessPassword({
+    required String documentId,
+    required String userId,
+    required String? password,
+  }) async {
+    // Ownership is enforced by loadDocument, which only sees the caller's
+    // scope, so one user can never change another user's password.
+    final document = await loadDocument(documentId, userId);
+    if (document == null) {
+      throw const UnauthorizedException('Document not found for this user');
+    }
+    final updated = document.copyWith(
+      accessPasswordHash: () =>
+          password == null ? null : hashPasswordLocally(password),
+      updatedAtIso: () => DateTime.now().toIso8601String(),
+    );
+    return saveDocument(updated);
   }
 
   // ------------------------------------------------------------------ shares
@@ -145,7 +214,26 @@ class LocalBackend
   ) async {
     for (final share in await _allShares()) {
       if (share.slug != slug) continue;
-      return _resolveShare(share);
+      // Password-protected documents are never returned by plain resolution.
+      final resolved = await _resolveShare(share, allowProtected: false);
+      if (resolved != null) await recordView(share.id);
+      return resolved;
+    }
+    return null;
+  }
+
+  @override
+  Future<({CvDocument document, UserProfile profile})?>
+  resolveBySlugWithPassword(String slug, String password) async {
+    for (final share in await _allShares()) {
+      if (share.slug != slug) continue;
+      final resolved = await _resolveShare(share, allowProtected: true);
+      if (resolved == null) return null;
+      final hash = resolved.document.accessPasswordHash;
+      if (hash == null) return null;
+      if (!verifyPasswordLocally(password, hash)) return null;
+      await recordView(share.id);
+      return resolved;
     }
     return null;
   }
@@ -156,10 +244,13 @@ class LocalBackend
   ) async {
     for (final share in await _allShares()) {
       if (share.accessToken != token) continue;
-      final resolved = await _resolveShare(share);
+      // Restricted tokens may still resolve a password-protected document:
+      // possession of the unguessable token already authorises the recipient.
+      final resolved = await _resolveShare(share, allowProtected: true);
       if (resolved == null) {
         throw const ShareNotFoundException('Share is not available');
       }
+      await recordView(share.id);
       return resolved;
     }
     throw const ShareNotFoundException('Invalid access token');
@@ -173,8 +264,9 @@ class LocalBackend
   ///
   /// Clients never make this decision; only this layer grants public access.
   Future<({CvDocument document, UserProfile profile})?> _resolveShare(
-    DocumentShare share,
-  ) async {
+    DocumentShare share, {
+    bool allowProtected = false,
+  }) async {
     if (!share.grantsAccessAt(DateTime.now())) {
       throw const ShareNotFoundException('Share is expired or revoked');
     }
@@ -185,6 +277,11 @@ class LocalBackend
     }
     if (!document.published) {
       throw const ShareNotFoundException('Document is not published');
+    }
+    // A password hash means the document is protected: unless the caller is
+    // the password-aware resolver, deny access here.
+    if (!allowProtected && document.accessPasswordHash != null) {
+      throw const ShareNotFoundException('Document requires a password');
     }
 
     final profileMap = await _store.readMap(_profileScope(document.ownerId));
@@ -258,6 +355,7 @@ class LocalBackend
   @override
   Future<void> deleteAccount(String userId) async {
     await deleteAllForUser(userId);
+    await _store.removeWherePrefix('cv_draft_${userId}_');
     await _store.remove(_profileScope(userId));
 
     final ownedRows = await _store.readList(_documentScope(userId));

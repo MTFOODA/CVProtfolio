@@ -1,0 +1,9 @@
+{
+  "name": "cvprotfolio",
+  "account_id": "191dfbad351e265b9f10d46ec543e5fd",
+  "compatibility_date": "2026-11-06",
+  "assets": {
+    "directory": "./build/web",
+    "not_found_handling": "single-page-application"
+  }
+}

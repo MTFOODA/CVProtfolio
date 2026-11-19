@@ -30,7 +30,7 @@ DateRange _dateRangeOf(dynamic raw) => raw is Map
 bool _blank(String? value) => value == null || value.trim().isEmpty;
 
 /// Formats an ISO-like date into `Mon YYYY`, tolerating free text.
-String prettyDate(String? iso) {
+String prettyDate(String? iso, {String languageCode = 'en'}) {
   if (iso == null) return '';
   final value = iso.trim();
   if (value.isEmpty) return '';
@@ -50,7 +50,22 @@ String prettyDate(String? iso) {
     'Nov',
     'Dec',
   ];
-  return '${months[parsed.month - 1]} ${parsed.year}';
+  const arabicMonths = [
+    '\u064a\u0646\u0627\u064a\u0631',
+    '\u0641\u0628\u0631\u0627\u064a\u0631',
+    '\u0645\u0627\u0631\u0633',
+    '\u0623\u0628\u0631\u064a\u0644',
+    '\u0645\u0627\u064a\u0648',
+    '\u064a\u0648\u0646\u064a\u0648',
+    '\u064a\u0648\u0644\u064a\u0648',
+    '\u0623\u063a\u0633\u0637\u0633',
+    '\u0633\u0628\u062a\u0645\u0628\u0631',
+    '\u0623\u0643\u062a\u0648\u0628\u0631',
+    '\u0646\u0648\u0641\u0645\u0628\u0631',
+    '\u062f\u064a\u0633\u0645\u0628\u0631',
+  ];
+  final names = languageCode == 'ar' ? arabicMonths : months;
+  return '${names[parsed.month - 1]} ${parsed.year}';
 }
 
 /// A date range used by experience, education and projects.
@@ -60,6 +75,30 @@ class DateRange {
   final String? startIso;
   final String? endIso;
   final bool isCurrent;
+
+  /// `true` when neither boundary is set.
+  bool get isEmpty => _blank(startIso) && _blank(endIso);
+
+  /// Formats the range as `Mon YYYY - Mon YYYY`, `Mon YYYY - Present`, or `''`.
+  ///
+  /// This is a real instance member, not an extension method. Extension methods
+  /// are resolved statically, so a `dynamic` receiver (for example an element
+  /// of a collection whose empty fallback was inferred as `List<dynamic>`)
+  /// throws `NoSuchMethodError` at runtime. Keeping the formatter on the class
+  /// makes that failure impossible, while [prettyDate] still tolerates missing
+  /// dates, free text and open-ended (current) ranges.
+  String format({String languageCode = 'en'}) {
+    if (isEmpty) return '';
+    final start = prettyDate(startIso, languageCode: languageCode);
+    if (isCurrent || _blank(endIso)) {
+      return start.isEmpty
+          ? ''
+          : '$start - ${languageCode == 'ar' ? '\u0627\u0644\u0622\u0646' : 'Present'}';
+    }
+    final end = prettyDate(endIso, languageCode: languageCode);
+    if (start.isEmpty) return end;
+    return '$start - $end';
+  }
 
   DateRange copyWith({String? startIso, String? endIso, bool? isCurrent}) =>
       DateRange(
@@ -81,22 +120,6 @@ class DateRange {
   };
 }
 
-/// Extension helpers for [DateRange].
-extension DateRangeX on DateRange {
-  bool get isEmpty => _blank(startIso) && _blank(endIso);
-
-  String format() {
-    if (isEmpty) return '';
-    final start = prettyDate(startIso);
-    if (isCurrent || _blank(endIso)) {
-      return start.isEmpty ? '' : '$start - Present';
-    }
-    final end = prettyDate(endIso);
-    if (start.isEmpty) return end;
-    return '$start - $end';
-  }
-}
-
 /// Personal details shared across every document.
 class ProfileDetails {
   const ProfileDetails({
@@ -107,6 +130,7 @@ class ProfileDetails {
     this.location,
     this.website,
     this.links = const <String>[],
+    this.linkLabels = const <String, String>{},
     this.summary,
     this.avatarUrl,
   });
@@ -118,6 +142,9 @@ class ProfileDetails {
   final String? location;
   final String? website;
   final List<String> links;
+
+  /// Optional visible text keyed by the saved destination URL.
+  final Map<String, String> linkLabels;
   final String? summary;
   final String? avatarUrl;
 
@@ -129,6 +156,7 @@ class ProfileDetails {
     String? location,
     String? website,
     List<String>? links,
+    Map<String, String>? linkLabels,
     String? summary,
     String? avatarUrl,
   }) => ProfileDetails(
@@ -139,6 +167,7 @@ class ProfileDetails {
     location: location ?? this.location,
     website: website ?? this.website,
     links: links ?? this.links,
+    linkLabels: linkLabels ?? this.linkLabels,
     summary: summary ?? this.summary,
     avatarUrl: avatarUrl ?? this.avatarUrl,
   );
@@ -151,6 +180,10 @@ class ProfileDetails {
     location: json['location'] as String?,
     website: json['website'] as String?,
     links: _stringList(json['links']),
+    linkLabels: {
+      for (final entry in _mapOf(json['linkLabels']).entries)
+        if (entry.value is String) entry.key: entry.value as String,
+    },
     summary: json['summary'] as String?,
     avatarUrl: json['avatarUrl'] as String?,
   );
@@ -163,9 +196,29 @@ class ProfileDetails {
     'location': location,
     'website': website,
     'links': links,
+    'linkLabels': linkLabels,
     'summary': summary,
     'avatarUrl': avatarUrl,
   };
+}
+
+/// An independently editable description with an optional bold heading.
+class DescriptionItem {
+  const DescriptionItem({required this.text, this.label = ''});
+
+  final String text;
+  final String label;
+
+  String get formatted =>
+      label.trim().isEmpty ? text.trim() : '${label.trim()}: ${text.trim()}';
+
+  factory DescriptionItem.fromJson(Map<String, dynamic> json) =>
+      DescriptionItem(
+        text: '${json['text'] ?? ''}',
+        label: '${json['label'] ?? ''}',
+      );
+
+  Map<String, dynamic> toJson() => {'text': text, 'label': label};
 }
 
 /// A professional experience entry.
@@ -178,6 +231,7 @@ class ExperienceEntry {
     this.employmentType,
     this.dateRange = const DateRange(),
     this.descriptions = const <String>[],
+    this.descriptionItems,
     this.visible = true,
   });
 
@@ -188,6 +242,14 @@ class ExperienceEntry {
   final String? employmentType;
   final DateRange dateRange;
   final List<String> descriptions;
+  final List<DescriptionItem>? descriptionItems;
+
+  List<DescriptionItem> get resolvedDescriptions =>
+      descriptionItems ??
+      [
+        for (final text in descriptions)
+          if (text.trim().isNotEmpty) DescriptionItem(text: text),
+      ];
   final bool visible;
 
   ExperienceEntry copyWith({
@@ -198,6 +260,7 @@ class ExperienceEntry {
     String? employmentType,
     DateRange? dateRange,
     List<String>? descriptions,
+    List<DescriptionItem>? descriptionItems,
     bool? visible,
   }) => ExperienceEntry(
     id: id ?? this.id,
@@ -207,6 +270,9 @@ class ExperienceEntry {
     employmentType: employmentType ?? this.employmentType,
     dateRange: dateRange ?? this.dateRange,
     descriptions: descriptions ?? this.descriptions,
+    descriptionItems:
+        descriptionItems ??
+        (descriptions == null ? this.descriptionItems : null),
     visible: visible ?? this.visible,
   );
 
@@ -219,6 +285,9 @@ class ExperienceEntry {
         employmentType: json['employmentType'] as String?,
         dateRange: _dateRangeOf(json['dateRange']),
         descriptions: _stringList(json['descriptions']),
+        descriptionItems: json['descriptionItems'] is List
+            ? _listOf(json['descriptionItems'], DescriptionItem.fromJson)
+            : null,
         visible: json['visible'] as bool? ?? true,
       );
 
@@ -230,6 +299,8 @@ class ExperienceEntry {
     'employmentType': employmentType,
     'dateRange': dateRange.toJson(),
     'descriptions': descriptions,
+    if (descriptionItems != null)
+      'descriptionItems': descriptionItems!.map((e) => e.toJson()).toList(),
     'visible': visible,
   };
 }
@@ -306,6 +377,7 @@ class SkillEntry {
     required this.id,
     this.name,
     this.category = 'general',
+    this.iconId = 'general',
     this.proficiency,
     this.visible = true,
   });
@@ -313,6 +385,7 @@ class SkillEntry {
   final String id;
   final String? name;
   final String category;
+  final String iconId;
   final int? proficiency;
   final bool visible;
 
@@ -320,12 +393,14 @@ class SkillEntry {
     String? id,
     String? name,
     String? category,
+    String? iconId,
     int? proficiency,
     bool? visible,
   }) => SkillEntry(
     id: id ?? this.id,
     name: name ?? this.name,
     category: category ?? this.category,
+    iconId: iconId ?? this.iconId,
     proficiency: proficiency ?? this.proficiency,
     visible: visible ?? this.visible,
   );
@@ -334,6 +409,7 @@ class SkillEntry {
     id: '${json['id'] ?? ''}',
     name: json['name'] as String?,
     category: json['category'] as String? ?? 'general',
+    iconId: json['iconId'] as String? ?? 'general',
     proficiency: (json['proficiency'] as num?)?.toInt(),
     visible: json['visible'] as bool? ?? true,
   );
@@ -342,6 +418,7 @@ class SkillEntry {
     'id': id,
     'name': name,
     'category': category,
+    'iconId': iconId,
     'proficiency': proficiency,
     'visible': visible,
   };
@@ -721,6 +798,8 @@ class ProjectEntry {
     this.title,
     this.summary,
     this.description,
+    this.descriptionItems,
+    this.dateRange = const DateRange(),
     this.demoUrl,
     this.sourceUrl,
     this.websiteUrl,
@@ -734,6 +813,15 @@ class ProjectEntry {
   final String? title;
   final String? summary;
   final String? description;
+  final List<DescriptionItem>? descriptionItems;
+
+  List<DescriptionItem> get resolvedDescriptions =>
+      descriptionItems ??
+      [
+        for (final text in (description ?? '').split('\n'))
+          if (text.trim().isNotEmpty) DescriptionItem(text: text),
+      ];
+  final DateRange dateRange;
   final String? demoUrl;
   final String? sourceUrl;
   final String? websiteUrl;
@@ -747,6 +835,8 @@ class ProjectEntry {
     String? title,
     String? summary,
     String? description,
+    List<DescriptionItem>? descriptionItems,
+    DateRange? dateRange,
     String? demoUrl,
     String? sourceUrl,
     String? websiteUrl,
@@ -759,6 +849,10 @@ class ProjectEntry {
     title: title ?? this.title,
     summary: summary ?? this.summary,
     description: description ?? this.description,
+    descriptionItems:
+        descriptionItems ??
+        (description == null ? this.descriptionItems : null),
+    dateRange: dateRange ?? this.dateRange,
     demoUrl: demoUrl ?? this.demoUrl,
     sourceUrl: sourceUrl ?? this.sourceUrl,
     websiteUrl: websiteUrl ?? this.websiteUrl,
@@ -773,6 +867,10 @@ class ProjectEntry {
     title: json['title'] as String?,
     summary: json['summary'] as String?,
     description: json['description'] as String?,
+    descriptionItems: json['descriptionItems'] is List
+        ? _listOf(json['descriptionItems'], DescriptionItem.fromJson)
+        : null,
+    dateRange: _dateRangeOf(json['dateRange']),
     demoUrl: json['demoUrl'] as String?,
     sourceUrl: json['sourceUrl'] as String?,
     websiteUrl: json['websiteUrl'] as String?,
@@ -787,6 +885,9 @@ class ProjectEntry {
     'title': title,
     'summary': summary,
     'description': description,
+    if (descriptionItems != null)
+      'descriptionItems': descriptionItems!.map((e) => e.toJson()).toList(),
+    'dateRange': dateRange.toJson(),
     'demoUrl': demoUrl,
     'sourceUrl': sourceUrl,
     'websiteUrl': websiteUrl,
@@ -797,66 +898,153 @@ class ProjectEntry {
   };
 }
 
+enum CustomSectionCategory {
+  custom,
+  certificates,
+  courses,
+  projects,
+  experience,
+  education,
+  awards,
+  volunteer,
+  publications,
+  references;
+
+  String get labelKey => this == custom ? 'customSection' : name;
+}
+
+CustomSectionCategory _customCategory(Map<String, dynamic> json) {
+  for (final category in CustomSectionCategory.values) {
+    if (category.name == json['category']) return category;
+  }
+  if (json.containsKey('category')) return CustomSectionCategory.custom;
+  // Older entries predate the type picker; recognize only familiar headings.
+  final title = '${json['title'] ?? ''}'.trim().toLowerCase();
+  return switch (title) {
+    'certificates' ||
+    'certifications' ||
+    'شهادات' ||
+    'الشهادات' => CustomSectionCategory.certificates,
+    'courses' ||
+    'كورسات' ||
+    'الكورسات' ||
+    'دورات' ||
+    'الدورات' => CustomSectionCategory.courses,
+    'projects' ||
+    'other projects' ||
+    'مشاريع' ||
+    'المشاريع' => CustomSectionCategory.projects,
+    _ => CustomSectionCategory.custom,
+  };
+}
+
 /// A user-defined section with its own entries.
 class CustomSection {
   const CustomSection({
     required this.id,
     required this.title,
     this.entries = const <CustomEntry>[],
+    this.category = CustomSectionCategory.custom,
   });
 
   final String id;
   final String title;
   final List<CustomEntry> entries;
+  final CustomSectionCategory category;
 
   CustomSection copyWith({
     String? id,
     String? title,
     List<CustomEntry>? entries,
+    CustomSectionCategory? category,
   }) => CustomSection(
     id: id ?? this.id,
     title: title ?? this.title,
     entries: entries ?? this.entries,
+    category: category ?? this.category,
   );
 
   factory CustomSection.fromJson(Map<String, dynamic> json) => CustomSection(
     id: '${json['id'] ?? ''}',
     title: '${json['title'] ?? ''}',
     entries: _listOf<CustomEntry>(json['entries'], CustomEntry.fromJson),
+    category: _customCategory(json),
   );
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
     'entries': entries.map((e) => e.toJson()).toList(),
+    'category': category.name,
   };
 }
 
 /// An entry inside a user-defined section.
 class CustomEntry {
-  const CustomEntry({required this.id, required this.title, this.content});
-
+  const CustomEntry({
+    required this.id,
+    required this.title,
+    this.content,
+    this.issuer,
+    this.dateRange = const DateRange(),
+    this.credentialId,
+    this.url,
+    this.imageUrl,
+    this.visible = true,
+  });
   final String id;
   final String title;
-  final String? content;
-
-  CustomEntry copyWith({String? id, String? title, String? content}) =>
-      CustomEntry(
-        id: id ?? this.id,
-        title: title ?? this.title,
-        content: content ?? this.content,
-      );
-
+  final String? content, issuer, credentialId, url, imageUrl;
+  final DateRange dateRange;
+  final bool visible;
+  String get metadata => formatMetadata();
+  String formatMetadata({String languageCode = 'en'}) => [
+    issuer ?? '',
+    dateRange.format(languageCode: languageCode),
+    credentialId ?? '',
+  ].where((value) => value.trim().isNotEmpty).join(' \u00b7 ');
+  CustomEntry copyWith({
+    String? id,
+    String? title,
+    String? content,
+    String? issuer,
+    DateRange? dateRange,
+    String? credentialId,
+    String? url,
+    String? imageUrl,
+    bool? visible,
+  }) => CustomEntry(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    content: content ?? this.content,
+    issuer: issuer ?? this.issuer,
+    dateRange: dateRange ?? this.dateRange,
+    credentialId: credentialId ?? this.credentialId,
+    url: url ?? this.url,
+    imageUrl: imageUrl ?? this.imageUrl,
+    visible: visible ?? this.visible,
+  );
   factory CustomEntry.fromJson(Map<String, dynamic> json) => CustomEntry(
     id: '${json['id'] ?? ''}',
     title: '${json['title'] ?? ''}',
     content: json['content'] as String?,
+    issuer: json['issuer'] as String?,
+    dateRange: _dateRangeOf(json['dateRange']),
+    credentialId: json['credentialId'] as String?,
+    url: json['url'] as String?,
+    imageUrl: json['imageUrl'] as String?,
+    visible: json['visible'] as bool? ?? true,
   );
-
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
     'content': content,
+    'issuer': issuer,
+    'dateRange': dateRange.toJson(),
+    'credentialId': credentialId,
+    'url': url,
+    'imageUrl': imageUrl,
+    'visible': visible,
   };
 }
 

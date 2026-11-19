@@ -16,6 +16,10 @@
 library;
 
 import 'package:flutter/services.dart';
+
+import '../design/cv_design_options.dart';
+import '../utils/contact_links.dart';
+
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
@@ -27,6 +31,8 @@ class ExportFontSet {
     required this.italic,
     required this.boldItalic,
     this.fallback = const <pw.Font>[],
+    this.iconFont,
+    this.brandFont,
     required this.familyLabel,
     required this.supportsArabic,
     required this.isFallback,
@@ -36,6 +42,8 @@ class ExportFontSet {
   final pw.Font bold;
   final pw.Font italic;
   final pw.Font boldItalic;
+  final pw.Font? iconFont;
+  final pw.Font? brandFont;
 
   /// Fonts consulted for code points missing from the primary font.
   final List<pw.Font> fallback;
@@ -247,6 +255,45 @@ class GoogleFontSource implements ExportFontSource {
       needsArabic: false,
     );
 
+    final bundled = cvFontAssets[headingFont];
+    if (bundled != null) {
+      try {
+        final regular = pw.Font.ttf(
+          await (_bundle ?? rootBundle).load(
+            'assets/google_fonts/${bundled.$1}',
+          ),
+        );
+        final bold = pw.Font.ttf(
+          await (_bundle ?? rootBundle).load(
+            'assets/google_fonts/${bundled.$2}',
+          ),
+        );
+        final arabic = !needsArabic
+            ? regular
+            : headingFont == 'notoNaskhArabic'
+            ? regular
+            : await loadBundledArabicFont(bundle: _bundle);
+        final icon = pw.Font.ttf(
+          await (_bundle ?? rootBundle).load(cvIconAsset),
+        );
+        return ExportFontSet(
+          regular: regular,
+          bold: bold,
+          italic: regular,
+          boldItalic: bold,
+          fallback: [arabic],
+          iconFont: icon,
+          brandFont: pw.Font.ttf(
+            await (_bundle ?? rootBundle).load(contactBrandAsset),
+          ),
+          familyLabel: cvFontNames[headingFont]!,
+          supportsArabic: needsArabic || headingFont == 'notoNaskhArabic',
+          isFallback: false,
+        );
+      } on Object {
+        /* Fall through to the established offline/download fallback. */
+      }
+    }
     final weights = _families[headingFont] ?? _families['inter']!;
     final regular = await _firstOf(weights[0]) ?? base.regular;
     final bold = await _firstOf(weights[1]) ?? regular;

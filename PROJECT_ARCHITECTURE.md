@@ -1,4 +1,4 @@
-# Project Architecture — CV & Portfolio Studio
+# Project Architecture — CV & Portfolio Builder
 
 > **Status of this document.** Everything below was derived by reading the source
 > in this repository at the commit that contains these files. Where a fact could
@@ -9,6 +9,39 @@
 ---
 
 ## 1. Project Overview
+
+### UI modernization reference
+
+The shared presentation system lives in `lib/core/theme` and `lib/core/widgets`.
+Its component/motion inventory is in [docs/VISUAL_IDENTITY.md](docs/VISUAL_IDENTITY.md).
+See [FEATURE_PRESERVATION_CHECKLIST.md](FEATURE_PRESERVATION_CHECKLIST.md) for
+original-to-current feature mappings and [docs/UI_MODERNIZATION.md](docs/UI_MODERNIZATION.md)
+for executed QA and outstanding live/platform acceptance checks.
+
+Portfolio controls are embedded in global `/settings?section=portfolio`.
+`/settings/portfolio`, `/portfolio/settings` and `/portfolio?tab=settings` redirect
+there; owner and visitor portfolios share content-driven About, Experience,
+Projects, Skills and Credentials pages. Empty/hidden pages are omitted and
+selection is keyed by page identity. Legacy credential
+management remains available at `/settings/credentials/certificates|courses`.
+The eight-step CV wizard adds user-named custom sections after Languages and
+before Review, with structured entries, optional links and images. Wizard edits
+stay in an isolated draft until generation synchronizes the shared profile and
+saves an independent CV snapshot. Draft JSON version 2 migrates the old Review
+index from 6 to 7. Added date/custom-entry fields use existing JSON columns;
+no database migration is required for these additions. Custom sections additionally
+persist a `category` in their existing JSON payload; the editor offers typed
+sections with editable names. `PortfolioContent` maps resolved visible entries
+to the same pages for owners and visitors. Contact links and remaining contact
+metadata are displayed inside the profile hero.
+
+Web routing uses `usePathUrlStrategy()` before Supabase initialization; historical
+`#/...` links are normalized without rewriting OAuth token fragments. Public
+slug/token routes retain their separate visitor-only UI and server access checks.
+`withProfileCustomSections` extends each resolved design with authored sections
+while retaining saved visibility/order settings. The same resolved content drives
+preview, PDF and DOCX; optional custom images use authorized storage loading and
+embedded DOCX relationships rather than exposed storage URLs.
 
 ### Purpose
 
@@ -358,10 +391,11 @@ Any other error becomes `AsyncError`, and the screen shows `errorGeneric`.
 (`lib/data/auth/auth_service.dart`):
 
 - Supabase configured → `SupabaseAuthService` (Google, real backend).
-- Nothing configured → `LocalAuthService`, where `signInWithGoogle()` simply
-  creates a local identity, so the "Sign in with Google" button still works
-  offline. This is deliberate: the whole product stays explorable with no
-  credentials.
+- Nothing configured → `LocalAuthService`. Google sign-in is unavailable;
+  only the explicit guest action creates a local identity. Normal startup uses
+  `AppConfig.load()` with bundled public defaults, so omitting build flags no
+  longer selects this mode. `--dart-define=OFFLINE_MODE=true` explicitly selects
+  offline operation. The Google button remains visible but disabled in that mode.
 
 `SupabaseAuthService.signInWithGoogle()` branches once:
 

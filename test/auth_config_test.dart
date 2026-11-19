@@ -7,6 +7,9 @@
 library;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,6 +17,9 @@ import 'package:cv_portfolio_maker/core/config/app_config.dart';
 import 'package:cv_portfolio_maker/data/auth/auth_service.dart';
 import 'package:cv_portfolio_maker/data/auth/local_auth_service.dart';
 import 'package:cv_portfolio_maker/data/auth/supabase_auth_service.dart';
+import 'package:cv_portfolio_maker/app/providers.dart';
+import 'package:cv_portfolio_maker/app/session.dart';
+import 'package:cv_portfolio_maker/features/auth/login_screen.dart';
 
 /// A fully configured app. Every value is an obvious placeholder.
 const AppConfig _configured = AppConfig(
@@ -35,6 +41,108 @@ const AppConfig _unconfigured = AppConfig(
 );
 
 void main() {
+  testWidgets(
+    'explicit offline mode keeps Google visible but disabled and offers guest access',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final service = LocalAuthService();
+      final container = ProviderContainer(
+        overrides: [
+          appConfigProvider.overrideWithValue(_unconfigured),
+          authServiceProvider.overrideWithValue(service),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: LoginScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Sign in with Google'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('google-login')))
+            .onPressed,
+        isNull,
+      );
+      expect(
+        find.textContaining('Online sign-in is unavailable'),
+        findsOneWidget,
+      );
+      expect(service.currentUser, isNull);
+      await tester.ensureVisible(find.text('Explore without an account'));
+      await tester.tap(find.text('Explore without an account'));
+      await tester.pumpAndSettle();
+      expect(container.read(sessionProvider2).value?.id, 'local-user');
+    },
+  );
+
+  testWidgets(
+    'normal startup without build flags shows enabled Google sign-in',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final config = await AppConfig.load(environmentValues: const {});
+      expect(config.isSupabaseConfigured, isTrue);
+      expect(config.hasGoogleWebClientId, isTrue);
+      expect(createAuthService(config), isA<SupabaseAuthService>());
+      final container = ProviderContainer(
+        overrides: [
+          appConfigProvider.overrideWithValue(config),
+          authServiceProvider.overrideWithValue(_SignedOutAuth()),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: LoginScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Sign in with Google'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('google-login')))
+            .onPressed,
+        isNotNull,
+      );
+      expect(find.text('Explore without an account'), findsNothing);
+    },
+  );
+
+  test(
+    'offline mode is explicit and does not need the bundled configuration',
+    () async {
+      final config = await AppConfig.load(
+        offline: true,
+        bundle: _MissingBundle(),
+      );
+      expect(config.isSupabaseConfigured, isFalse);
+    },
+  );
+
+  test('a different deployment never mixes its credentials with the default project', () async {
+    final config = await AppConfig.load(
+      bundle: _MissingBundle(),
+      environmentValues: const {
+        'SUPABASE_URL': 'https://other.supabase.co',
+        'SUPABASE_ANON_KEY': 'other-public-key',
+        'GOOGLE_WEB_CLIENT_ID': 'other.apps.googleusercontent.com',
+      },
+    );
+    expect(config.supabaseUrl, 'https://other.supabase.co');
+    expect(config.supabaseAnonKey, 'other-public-key');
+    expect(config.googleWebClientId, 'other.apps.googleusercontent.com');
+    await expectLater(
+      AppConfig.load(
+        environmentValues: const {'SUPABASE_URL': 'https://other.supabase.co'},
+      ),
+      throwsFormatException,
+    );
+  });
+
   group('AppConfig', () {
     test('with Supabase credentials it selects the Supabase backend', () {
       expect(_configured.isSupabaseConfigured, isTrue);
@@ -88,11 +196,30 @@ void main() {
       expect(createAuthService(_unconfigured), isA<LocalAuthService>());
     });
 
-    test('offline mode still offers a working sign-in', () async {
+    test('offline mode offers explicit guest sign-in', () async {
       SharedPreferences.setMockInitialValues({});
-      final user = await createAuthService(_unconfigured).signInWithGoogle();
+      final user = await createAuthService(_unconfigured).signInLocally();
       expect(user.id, isNotEmpty);
     });
+
+    test(
+      'an offline Google request cannot create or restore a guest account',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final service = createAuthService(_unconfigured);
+        await expectLater(
+          service.signInWithGoogle(),
+          throwsA(isA<AuthException>()),
+        );
+        expect(await service.restoreSession(), isNull);
+        final guest = await service.signInLocally();
+        await expectLater(
+          service.signInWithGoogle(),
+          throwsA(isA<AuthException>()),
+        );
+        expect(service.currentUser, same(guest));
+      },
+    );
   });
 
   group('Google client ID guard', () {
@@ -165,4 +292,21 @@ void main() {
       expect('${error ?? ''}', isNot(contains('GOOGLE_WEB_CLIENT_ID')));
     });
   });
+}
+
+class _MissingBundle extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) async =>
+      throw StateError('Bundle should not be loaded');
+}
+
+class _SignedOutAuth extends Fake implements AuthService {
+  @override
+  AuthUser? get currentUser => null;
+  @override
+  bool get isRecoveringPassword => false;
+  @override
+  Stream<AuthUser?> get authStateChanges => const Stream.empty();
+  @override
+  Future<AuthUser?> restoreSession() async => null;
 }

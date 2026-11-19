@@ -44,6 +44,7 @@ final backendProvider = Provider<LocalBackendOrSupabase>((ref) {
 class LocalBackendOrSupabase
     implements
         ProfileRepository,
+        CvDraftRepository,
         DocumentRepository,
         ShareRepository,
         MediaRepository,
@@ -69,6 +70,21 @@ class LocalBackendOrSupabase
   AccountRepository get account =>
       (isLocal ? local! : supabase!) as AccountRepository;
 
+  CvDraftRepository get drafts =>
+      (isLocal ? local! : supabase!) as CvDraftRepository;
+  @override
+  Future<CvBuilderDraft?> loadCvDraft(String userId, String draftKey) =>
+      drafts.loadCvDraft(userId, draftKey);
+  @override
+  Future<void> saveCvDraft(
+    String userId,
+    String draftKey,
+    CvBuilderDraft draft,
+  ) => drafts.saveCvDraft(userId, draftKey, draft);
+  @override
+  Future<void> deleteCvDraft(String userId, String draftKey) =>
+      drafts.deleteCvDraft(userId, draftKey);
+
   @override
   Future<void> deleteAccount(String userId) => account.deleteAccount(userId);
 
@@ -83,6 +99,17 @@ class LocalBackendOrSupabase
   @override
   Future<void> deleteDocument(String documentId, String userId) =>
       documents.deleteDocument(documentId, userId);
+
+  @override
+  Future<CvDocument> setAccessPassword({
+    required String documentId,
+    required String userId,
+    required String? password,
+  }) => documents.setAccessPassword(
+    documentId: documentId,
+    userId: userId,
+    password: password,
+  );
 
   @override
   Future<List<CvDocument>> listDocuments(String userId) =>
@@ -112,6 +139,11 @@ class LocalBackendOrSupabase
   Future<({CvDocument document, UserProfile profile})> resolveByToken(
     String token,
   ) => shares.resolveByToken(token);
+
+  @override
+  Future<({CvDocument document, UserProfile profile})?>
+  resolveBySlugWithPassword(String slug, String password) =>
+      shares.resolveBySlugWithPassword(slug, password);
 
   @override
   Future<void> revokeShare(String shareId, String userId) =>

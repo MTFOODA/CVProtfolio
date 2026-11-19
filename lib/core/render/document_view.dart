@@ -1,4 +1,13 @@
+import '../widgets/profile_image.dart';
+import '../widgets/description_items_editor.dart';
+import '../utils/project_media.dart';
+
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../l10n/app_strings.dart';
+
+import 'contact_detail_icon.dart';
 
 import 'package:cv_portfolio_maker/core/domain/document_models.dart';
 import 'package:cv_portfolio_maker/core/domain/enums.dart';
@@ -15,9 +24,10 @@ import 'package:cv_portfolio_maker/core/render/section_titles.dart';
 /// result. Future PDF/DOCX exporters consume the same [ResolvedDocument] and
 /// [DocumentDesign] data, never this widget.
 class DocumentView extends StatelessWidget {
-  const DocumentView({super.key, required this.resolved});
+  const DocumentView({super.key, required this.resolved, this.sectionBuilder});
 
   final ResolvedDocument resolved;
+  final Widget? Function(BuildContext, ResolvedSection)? sectionBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +43,7 @@ class DocumentView extends StatelessWidget {
 
     final bodyStyle = TextStyle(
       fontFamily: typography.bodyFont,
+      fontFamilyFallback: const ['notoNaskhArabic'],
       fontSize: typography.bodyFontSize,
       height: typography.bodyLineHeight,
       color: bodyColor,
@@ -40,7 +51,10 @@ class DocumentView extends StatelessWidget {
 
     return Container(
       color: Color(colors.paper),
-      padding: EdgeInsets.all(spacing.pageMargin + spacing.pagePadding),
+      padding: EdgeInsets.symmetric(
+        horizontal: spacing.resolvedHorizontalMargin,
+        vertical: spacing.resolvedVerticalMargin,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -53,6 +67,7 @@ class DocumentView extends StatelessWidget {
             ),
           ],
           ..._buildBody(
+            context: context,
             design: design,
             colors: colors,
             typography: typography,
@@ -73,6 +88,7 @@ class DocumentView extends StatelessWidget {
   /// * `Two`   – exactly two columns; full-width slots fall back to the left.
   /// * `Mix`   – full-width bands interleaved with column bands, in order.
   List<Widget> _buildBody({
+    required BuildContext context,
     required DocumentDesign design,
     required ColorConfig colors,
     required TypographyConfig typography,
@@ -87,16 +103,18 @@ class DocumentView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final section in sections)
-            _DocumentSection(
-              section: section,
-              colors: colors,
-              typography: typography,
-              spacing: spacing,
-              presentation: presentation,
-              bodyStyle: bodyStyle,
-              headingColor: headingColor,
-              dividerColor: dividerColor,
-            ),
+            sectionBuilder?.call(context, section) ??
+                _DocumentSection(
+                  ownerId: resolved.document.ownerId,
+                  section: section,
+                  colors: colors,
+                  typography: typography,
+                  spacing: spacing,
+                  presentation: presentation,
+                  bodyStyle: bodyStyle,
+                  headingColor: headingColor,
+                  dividerColor: dividerColor,
+                ),
         ],
       );
     }
@@ -161,26 +179,56 @@ class _DocumentHeader extends StatelessWidget {
     final headingColor = Color(colors.headingText);
 
     final nameStyle = TextStyle(
-      fontFamily: typography.headingFont,
+      fontFamily: typography.resolvedNameFont,
+      fontFamilyFallback: const ['notoNaskhArabic'],
+      letterSpacing: typography.headingLetterSpacing,
       fontSize: typography.headingFontSize * typography.headingScale,
       height: typography.headingLineHeight,
       fontWeight: FontWeight.w700,
       color: headingColor,
     );
     final titleStyle = bodyStyle.copyWith(
-      fontFamily: typography.headingFont,
-      fontSize: typography.bodyFontSize * typography.headingScale + 1,
+      fontFamily: typography.bodyFont,
+      fontFamilyFallback: const ['notoNaskhArabic'],
+      fontSize: typography.resolvedProfessionalTitleFontSize,
       fontWeight: FontWeight.w600,
       color: Color(colors.secondary),
     );
 
-    final identity = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (name.isNotEmpty) Text(name, style: nameStyle),
-        if (title.isNotEmpty) Text(title, style: titleStyle),
-      ],
-    );
+    final identityChildren = <Widget>[
+      if (name.isNotEmpty)
+        Text(
+          name,
+          style: nameStyle,
+          textAlign: pres.headerStyle == 'center'
+              ? TextAlign.center
+              : TextAlign.start,
+        ),
+      if (title.isNotEmpty)
+        Text(
+          title,
+          style: titleStyle,
+          textAlign: pres.headerStyle == 'center'
+              ? TextAlign.center
+              : TextAlign.start,
+        ),
+    ];
+    final identity = pres.identityArrangement == 'inline'
+        ? Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: pres.headerStyle == 'center'
+                ? WrapAlignment.center
+                : WrapAlignment.start,
+            children: identityChildren,
+          )
+        : Column(
+            crossAxisAlignment: pres.headerStyle == 'center'
+                ? CrossAxisAlignment.center
+                : CrossAxisAlignment.start,
+            children: identityChildren,
+          );
 
     final avatar = _buildAvatar(context, details);
     final contactBlock = _ContactBlock(
@@ -205,10 +253,13 @@ class _DocumentHeader extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            avatar,
-            const SizedBox(width: 12),
+            if (pres.avatarShape != AvatarShape.hidden &&
+                (details.avatarUrl?.isNotEmpty ?? false)) ...[
+              avatar,
+              const SizedBox(width: 12),
+            ],
             Expanded(child: identity),
-            if (resolved.contacts.isNotEmpty) contactBlock,
+            if (resolved.contacts.isNotEmpty) Expanded(child: contactBlock),
           ],
         );
       case 'left':
@@ -216,8 +267,11 @@ class _DocumentHeader extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            avatar,
-            const SizedBox(width: 12),
+            if (pres.avatarShape != AvatarShape.hidden &&
+                (details.avatarUrl?.isNotEmpty ?? false)) ...[
+              avatar,
+              const SizedBox(width: 12),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -284,31 +338,119 @@ class _ContactBlock extends StatelessWidget {
   final TextStyle textStyle;
 
   @override
-  Widget build(BuildContext context) {
-    if (presentation.contactInline) {
-      return Wrap(
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.maxWidth.isFinite
+          ? constraints.maxWidth
+          : 260.0;
+      final center = presentation.headerStyle == 'center';
+      Widget item(ResolvedContact c) {
+        final content = Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: center
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.start,
+          children: [
+            if (presentation.showContactIcons) ...[
+              ContactDetailIcon(
+                label: c.label,
+                style: presentation.contactIconStyle,
+                size: presentation.resolvedContactIconSize(
+                  textStyle.fontSize ?? 12,
+                ),
+                color: textStyle.color ?? Colors.black,
+              ),
+              const SizedBox(width: 4),
+            ],
+            Flexible(
+              child: Text(
+                c.text(),
+                style: textStyle,
+                textAlign: center ? TextAlign.center : TextAlign.start,
+              ),
+            ),
+          ],
+        );
+        if (c.url == null) return content;
+        return Semantics(
+          link: true,
+          label: c.label,
+          child: InkWell(
+            onTap: () async {
+              var opened = false;
+              try {
+                opened = await launchUrl(
+                  Uri.parse(c.url!),
+                  mode: LaunchMode.externalApplication,
+                );
+              } catch (_) {
+                /* Surface a friendly error, never a broken navigation. */
+              }
+              if (!opened && context.mounted) {
+                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                  SnackBar(content: Text(context.tr('errorGeneric'))),
+                );
+              }
+            },
+            child: content,
+          ),
+        );
+      }
+
+      Widget row(List<ResolvedContact> values) => Wrap(
+        alignment: center ? WrapAlignment.center : WrapAlignment.start,
         spacing: 12,
         runSpacing: 4,
         children: [
-          for (final c in contacts)
-            Text('${c.label}: ${c.value}', style: textStyle),
+          for (final c in values)
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: width),
+              child: item(c),
+            ),
         ],
       );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final c in contacts)
-          Text('${c.label}: ${c.value}', style: textStyle),
-      ],
-    );
-  }
+      final middle = (contacts.length / 2).ceil();
+      return switch (presentation.resolvedContactArrangement) {
+        'compact' || 'oneRow' => row(contacts),
+        'twoRows' => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            row(contacts.take(middle).toList()),
+            const SizedBox(height: 4),
+            row(contacts.skip(middle).toList()),
+          ],
+        ),
+        'grid' => Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            for (final c in contacts)
+              SizedBox(
+                width: width < 220 ? width : (width - 12) / 2,
+                child: item(c),
+              ),
+          ],
+        ),
+        _ => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final c in contacts)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: item(c),
+              ),
+          ],
+        ),
+      };
+    },
+  );
 }
 
 /// Renders a single section: heading, divider and its entries.
 class _DocumentSection extends StatelessWidget {
   const _DocumentSection({
     required this.section,
+    required this.ownerId,
     required this.colors,
     required this.typography,
     required this.spacing,
@@ -319,6 +461,7 @@ class _DocumentSection extends StatelessWidget {
   });
 
   final ResolvedSection section;
+  final String ownerId;
   final ColorConfig colors;
   final TypographyConfig typography;
   final SpacingConfig spacing;
@@ -442,6 +585,8 @@ class _DocumentSection extends StatelessWidget {
       case SectionKind.projects:
         return [
           _ProjectSection(
+            ownerId: ownerId,
+            typography: typography,
             section: section,
             spacing: spacing,
             bodyStyle: bodyStyle,
@@ -466,16 +611,18 @@ class _DocumentSection extends StatelessWidget {
 
   Widget _experience(BuildContext c, ExperienceEntry e) => _Entry(
     title: _join([e.position, e.company]),
-    meta: e.dateRange.format(),
-    lines: e.descriptions,
+    meta: _join([e.location, e.employmentType, e.dateRange.format()]),
+    descriptionItems: e.resolvedDescriptions,
     bodyStyle: bodyStyle,
     accent: Color(colors.accent),
     spacing: spacing,
+    presentation: presentation,
+    typography: typography,
   );
 
   Widget _education(BuildContext c, EducationEntry e) => _Entry(
-    title: _join([e.qualification, e.institution]),
-    meta: _join([e.fieldOfStudy, e.dateRange.format()]),
+    title: _join([e.qualification, e.fieldOfStudy]),
+    meta: _join([e.institution, e.dateRange.format()]),
     lines: [
       if (e.grade != null && e.grade!.isNotEmpty) e.grade!,
       if (e.description != null && e.description!.isNotEmpty) e.description!,
@@ -483,6 +630,8 @@ class _DocumentSection extends StatelessWidget {
     bodyStyle: bodyStyle,
     accent: Color(colors.accent),
     spacing: spacing,
+    presentation: presentation,
+    typography: typography,
   );
 
   Widget _certificate(BuildContext c, CertificateEntry e) => _Entry(
@@ -491,6 +640,8 @@ class _DocumentSection extends StatelessWidget {
     bodyStyle: bodyStyle,
     accent: Color(colors.accent),
     spacing: spacing,
+    presentation: presentation,
+    typography: typography,
   );
 
   Widget _course(BuildContext c, CourseEntry e) => _Entry(
@@ -499,6 +650,8 @@ class _DocumentSection extends StatelessWidget {
     bodyStyle: bodyStyle,
     accent: Color(colors.accent),
     spacing: spacing,
+    presentation: presentation,
+    typography: typography,
   );
 
   Widget _award(BuildContext c, AwardEntry e) => _Entry(
@@ -510,6 +663,8 @@ class _DocumentSection extends StatelessWidget {
     bodyStyle: bodyStyle,
     accent: Color(colors.accent),
     spacing: spacing,
+    presentation: presentation,
+    typography: typography,
   );
 
   Widget _volunteer(BuildContext c, VolunteerEntry e) => _Entry(
@@ -519,6 +674,8 @@ class _DocumentSection extends StatelessWidget {
     bodyStyle: bodyStyle,
     accent: Color(colors.accent),
     spacing: spacing,
+    presentation: presentation,
+    typography: typography,
   );
 
   Widget _publication(BuildContext c, PublicationEntry e) => _Entry(
@@ -527,6 +684,8 @@ class _DocumentSection extends StatelessWidget {
     bodyStyle: bodyStyle,
     accent: Color(colors.accent),
     spacing: spacing,
+    presentation: presentation,
+    typography: typography,
   );
 
   Widget _reference(BuildContext c, ReferenceEntry e) => _Entry(
@@ -536,14 +695,40 @@ class _DocumentSection extends StatelessWidget {
     bodyStyle: bodyStyle,
     accent: Color(colors.accent),
     spacing: spacing,
+    presentation: presentation,
+    typography: typography,
   );
 
-  Widget _custom(BuildContext c, CustomEntry e) => _Entry(
-    title: e.title,
-    lines: [if (e.content != null && e.content!.isNotEmpty) e.content!],
-    bodyStyle: bodyStyle,
-    accent: Color(colors.accent),
-    spacing: spacing,
+  Widget _custom(BuildContext c, CustomEntry e) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _Entry(
+        title: e.title,
+        meta: e.formatMetadata(languageCode: c.languageCode),
+        lines: [
+          if ((e.url ?? '').isNotEmpty) e.url!,
+          if ((e.content ?? '').isNotEmpty) e.content!,
+        ],
+        bodyStyle: bodyStyle,
+        accent: Color(colors.accent),
+        spacing: spacing,
+        presentation: presentation,
+        typography: typography,
+      ),
+      if ((e.imageUrl ?? '').isNotEmpty)
+        Padding(
+          padding: EdgeInsets.only(bottom: spacing.itemSpacing),
+          child: SizedBox(
+            height: 160,
+            child: PortfolioImage(
+              source: e.imageUrl,
+              ownerId: ownerId,
+              fit: BoxFit.contain,
+              fallback: const SizedBox.shrink(),
+            ),
+          ),
+        ),
+    ],
   );
 
   Widget _chips(BuildContext c, Iterable<String> labels) {
@@ -590,7 +775,8 @@ class _SectionHeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = TextStyle(
-      fontFamily: typography.headingFont,
+      fontFamily: typography.bodyFont,
+      fontFamilyFallback: const ['notoNaskhArabic'],
       fontSize: typography.sectionTitleFontSize * typography.headingScale,
       fontWeight: FontWeight.w700,
       letterSpacing: typography.headingLetterSpacing,
@@ -640,41 +826,80 @@ class _Entry extends StatelessWidget {
     required this.title,
     this.meta = '',
     this.lines = const [],
+    this.descriptionItems = const [],
     required this.bodyStyle,
     required this.accent,
     required this.spacing,
+    this.presentation = const PresentationConfig(),
+    this.typography = const TypographyConfig(),
   });
-
   final String title;
   final String meta;
   final List<String> lines;
+  final List<DescriptionItem> descriptionItems;
   final TextStyle bodyStyle;
   final Color accent;
   final SpacingConfig spacing;
-
+  final PresentationConfig presentation;
+  final TypographyConfig typography;
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: spacing.itemSpacing),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (title.isNotEmpty)
-            Text(title, style: bodyStyle.copyWith(fontWeight: FontWeight.w600)),
-          if (meta.isNotEmpty)
-            Text(
-              meta,
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(bottom: spacing.itemSpacing),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final heading = Text(
+              title,
               style: bodyStyle.copyWith(
-                fontSize: (bodyStyle.fontSize ?? 12) - 1.5,
+                fontSize: typography.resolvedEntryHeaderFontSize,
+                fontWeight: FontWeight.w600,
               ),
+            );
+            final metadata = Text(
+              meta,
+              style: bodyStyle.copyWith(color: Colors.black54),
+            );
+            if (presentation.dateLocationPosition == 'right' &&
+                constraints.maxWidth >= 240 &&
+                meta.isNotEmpty) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: heading),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: metadata,
+                    ),
+                  ),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (title.isNotEmpty) heading,
+                if (meta.isNotEmpty) metadata,
+              ],
+            );
+          },
+        ),
+        for (final item in descriptionItems)
+          if (item.text.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 12, top: 2),
+              child: DescriptionItemText(item: item, style: bodyStyle),
             ),
-          for (final line in lines)
-            if (line.isNotEmpty)
-              _BulletLine(text: line, bodyStyle: bodyStyle, accent: accent),
-        ],
-      ),
-    );
-  }
+        for (final line in lines)
+          if (line.isNotEmpty)
+            _BulletLine(text: line, bodyStyle: bodyStyle, accent: accent),
+      ],
+    ),
+  );
 }
 
 /// One description line with its list marker.
@@ -714,18 +939,22 @@ String _join(List<String?> parts) =>
 /// Renders the projects of a section using the configured card style.
 class _ProjectSection extends StatelessWidget {
   const _ProjectSection({
+    required this.ownerId,
     required this.section,
     required this.spacing,
     required this.bodyStyle,
     required this.accent,
     required this.presentation,
+    required this.typography,
   });
 
   final ResolvedSection section;
+  final String ownerId;
   final SpacingConfig spacing;
   final TextStyle bodyStyle;
   final Color accent;
   final PresentationConfig presentation;
+  final TypographyConfig typography;
 
   @override
   Widget build(BuildContext context) {
@@ -739,10 +968,12 @@ class _ProjectSection extends StatelessWidget {
           projects
               .map(
                 (p) => _ProjectCard(
+                  ownerId: ownerId,
                   project: p,
                   spacing: spacing,
                   bodyStyle: bodyStyle,
                   accent: accent,
+                  typography: typography,
                 ),
               )
               .toList(),
@@ -772,10 +1003,12 @@ class _ProjectSection extends StatelessWidget {
           SizedBox(
             width: 200,
             child: _ProjectCard(
+              ownerId: ownerId,
               project: p,
               spacing: spacing,
               bodyStyle: bodyStyle,
               accent: accent,
+              typography: typography,
               aspectRatio: presentation.projectImageAspectRatio,
             ),
           ),
@@ -785,37 +1018,46 @@ class _ProjectSection extends StatelessWidget {
 
   Widget _flat(BuildContext context, ProjectEntry p) => _Entry(
     title: p.title ?? '',
-    meta: p.summary ?? '',
+    meta: [
+      p.summary ?? '',
+      p.dateRange.format(),
+    ].where((value) => value.isNotEmpty).join(' ? '),
     lines: [
-      if (p.description != null && p.description!.isNotEmpty) p.description!,
       if (presentation.showProjectTechChips && p.technologies.isNotEmpty)
         p.technologies.join(', '),
       if (p.demoUrl != null && p.demoUrl!.isNotEmpty) p.demoUrl!,
     ],
+    descriptionItems: p.resolvedDescriptions,
     bodyStyle: bodyStyle,
     accent: accent,
     spacing: spacing,
+    typography: typography,
   );
 }
 
 class _ProjectCard extends StatelessWidget {
   const _ProjectCard({
+    required this.ownerId,
     required this.project,
     required this.spacing,
     required this.bodyStyle,
     required this.accent,
     this.aspectRatio,
+    required this.typography,
   });
 
   final ProjectEntry project;
+  final String ownerId;
   final SpacingConfig spacing;
   final TextStyle bodyStyle;
   final Color accent;
   final double? aspectRatio;
+  final TypographyConfig typography;
 
   @override
   Widget build(BuildContext context) {
-    final cover = project.media.isNotEmpty ? project.media.first : null;
+    final images = project.media.where((m) => !isProjectVideo(m));
+    final cover = images.isEmpty ? null : images.first;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -824,10 +1066,10 @@ class _ProjectCard extends StatelessWidget {
             aspectRatio: aspectRatio ?? 1.6,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                cover,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
+              child: PortfolioImage(
+                source: cover,
+                ownerId: ownerId,
+                fallback: Container(
                   color: accent.withValues(alpha: 0.15),
                   child: const Icon(Icons.image_outlined),
                 ),
@@ -839,10 +1081,21 @@ class _ProjectCard extends StatelessWidget {
         if (project.title != null && project.title!.isNotEmpty)
           Text(
             project.title!,
-            style: bodyStyle.copyWith(fontWeight: FontWeight.w600),
+            style: bodyStyle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: typography.resolvedEntryHeaderFontSize,
+            ),
+          ),
+        if (!project.dateRange.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(project.dateRange.format(), style: bodyStyle),
           ),
         if (project.summary != null && project.summary!.isNotEmpty)
           Text(project.summary!, style: bodyStyle),
+        for (final item in project.resolvedDescriptions)
+          if (item.text.trim().isNotEmpty)
+            DescriptionItemText(item: item, style: bodyStyle),
         if (project.technologies.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 4),

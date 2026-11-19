@@ -65,9 +65,9 @@ String proficiencyLabel(int? level, {String languageCode = 'en'}) {
 
 /// Icons used for contact labels in rendered documents.
 const Map<String, int> contactIconCodes = {
-  'Email': 0xe0be, // Icons.mail_outline
-  'Phone': 0xe0b0, // Icons.phone_outlined
-  'Location': 0xe0c8, // Icons.place_outlined
+  'Email': 0xe0e1, // Icons.mail_outline
+  'Phone': 0xe0cd, // Icons.phone_outlined
+  'Location': 0xe55f, // Icons.place_outlined
   'Website': 0xe894, // Icons.language
   'Link': 0xe157, // Icons.link
 };

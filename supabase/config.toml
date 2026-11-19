@@ -1,0 +1,6 @@
+project_id = "cv-portfolio-maker"
+
+# Public viewers prove access through a slug, password or recipient token.
+# The function validates those credentials before signing any private media.
+[functions.share-media]
+verify_jwt = false

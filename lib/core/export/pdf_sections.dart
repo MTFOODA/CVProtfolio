@@ -11,6 +11,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:cv_portfolio_maker/core/domain/enums.dart';
 import 'package:cv_portfolio_maker/core/domain/profile_models.dart';
 import 'package:cv_portfolio_maker/core/export/pdf_style.dart';
+import 'package:cv_portfolio_maker/core/export/document_text.dart'
+    show containsArabicScript;
 import 'package:cv_portfolio_maker/core/render/resolved_document.dart';
 import 'package:cv_portfolio_maker/core/render/section_titles.dart';
 
@@ -41,10 +43,30 @@ class SectionRenderer {
 
   /// Every widget belonging to [section], in reading order.
   List<pw.Widget> build(ResolvedSection section) => [
+    if (style.design.layoutMode == LayoutMode.one)
+      pw.NewPage(
+        freeSpace:
+            style.typography.sectionTitleFontSize +
+            style.typography.resolvedEntryHeaderFontSize +
+            style.typography.bodyFontSize * 4,
+      ),
     _heading(style.sectionTitle(section.title)),
     style.divider(),
     pw.SizedBox(height: style.spacing.itemSpacing / 2),
-    ..._entries(section),
+    for (final entry in _entries(section)) ...[
+      if (style.design.layoutMode == LayoutMode.one)
+        pw.NewPage(
+          freeSpace:
+              style.typography.resolvedEntryHeaderFontSize * 2 +
+              style.typography.bodyFontSize * 2,
+        ),
+      if (style.design.layoutMode == LayoutMode.one && entry is _EntryBlock)
+        ...entry.flowChildren.map(
+          (child) => child is pw.Text ? _fullWidth(child) : child,
+        )
+      else
+        entry,
+    ],
   ];
 
   /// A section heading that spans the content width.
@@ -61,16 +83,17 @@ class SectionRenderer {
         return [
           for (final e in section.experiences)
             _block([
-              _entryTitle(joinNonEmpty([e.position, e.company])),
-              _optional(
+              _entryHeader(
+                joinNonEmpty([e.position, e.company]),
                 joinNonEmpty([
                   e.location,
                   e.employmentType,
                   e.dateRange.format(),
                 ]),
-                style.metaStyle(),
               ),
-              ...e.descriptions.where((d) => d.trim().isNotEmpty).map(_bullet),
+              ...e.resolvedDescriptions
+                  .where((d) => d.text.trim().isNotEmpty)
+                  .map(_description),
             ]),
         ];
 
@@ -78,12 +101,12 @@ class SectionRenderer {
         return [
           for (final e in section.education)
             _block([
-              _entryTitle(joinNonEmpty([e.qualification, e.fieldOfStudy])),
-              _optional(
+              _entryHeader(
+                joinNonEmpty([e.qualification, e.fieldOfStudy]),
                 joinNonEmpty([e.institution, e.dateRange.format()]),
-                style.metaStyle(),
               ),
-              _optional(joinNonEmpty(['Grade', e.grade]), style.metaStyle()),
+              if ((e.grade ?? '').trim().isNotEmpty)
+                _optional(joinNonEmpty(['Grade', e.grade]), style.metaStyle()),
               _optional(e.description, style.style()),
             ]),
         ];
@@ -106,8 +129,10 @@ class SectionRenderer {
         return [
           for (final c in section.certificates)
             _block([
-              _entryTitle(joinNonEmpty([c.name, c.issuer])),
-              _optional(c.dateRange.format(), style.metaStyle()),
+              _entryHeader(
+                joinNonEmpty([c.name, c.issuer]),
+                c.dateRange.format(),
+              ),
             ]),
         ];
 
@@ -115,8 +140,10 @@ class SectionRenderer {
         return [
           for (final c in section.courses)
             _block([
-              _entryTitle(joinNonEmpty([c.name, c.institution])),
-              _optional(c.dateRange.format(), style.metaStyle()),
+              _entryHeader(
+                joinNonEmpty([c.name, c.institution]),
+                c.dateRange.format(),
+              ),
             ]),
         ];
 
@@ -124,8 +151,10 @@ class SectionRenderer {
         return [
           for (final a in section.awards)
             _block([
-              _entryTitle(joinNonEmpty([a.name, a.issuer])),
-              _optional(a.dateRange.format(), style.metaStyle()),
+              _entryHeader(
+                joinNonEmpty([a.name, a.issuer]),
+                a.dateRange.format(),
+              ),
               _optional(a.description, style.style()),
             ]),
         ];
@@ -134,10 +163,9 @@ class SectionRenderer {
         return [
           for (final v in section.volunteer)
             _block([
-              _entryTitle(joinNonEmpty([v.role, v.organization])),
-              _optional(
+              _entryHeader(
+                joinNonEmpty([v.role, v.organization]),
                 joinNonEmpty([v.location, v.dateRange.format()]),
-                style.metaStyle(),
               ),
               ...v.descriptions.where((d) => d.trim().isNotEmpty).map(_bullet),
             ]),
@@ -147,10 +175,9 @@ class SectionRenderer {
         return [
           for (final p in section.publications)
             _block([
-              _entryTitle(p.title ?? ''),
-              _optional(
+              _entryHeader(
+                p.title ?? '',
                 joinNonEmpty([p.venue, p.dateRange.format()]),
-                style.metaStyle(),
               ),
             ]),
         ];
@@ -166,12 +193,29 @@ class SectionRenderer {
         ];
 
       case SectionKind.projects:
+        if (style.design.layoutMode == LayoutMode.one &&
+            style.presentation.projectCardStyle != 'gallery') {
+          return [for (final project in section.projects) _project(project)];
+        }
         return [_projects(section.projects)];
 
       case SectionKind.custom:
         return [
           for (final e in section.customEntries)
-            _block([_entryTitle(e.title), _optional(e.content, style.style())]),
+            _block([
+              _entryTitle(e.title),
+              _optional(e.metadata, style.metaStyle()),
+              _optional(e.content, style.style()),
+              _linkLine('Website', e.url),
+              if (!style.ats &&
+                  e.imageUrl != null &&
+                  images?.call(e.imageUrl!) != null)
+                pw.Image(
+                  images!(e.imageUrl!)!,
+                  height: 110,
+                  fit: pw.BoxFit.contain,
+                ),
+            ]),
         ];
 
       case SectionKind.personalDetails:
@@ -183,8 +227,12 @@ class SectionRenderer {
 
   // -------------------------------------------------------------- primitives
 
-  pw.Widget _text(String value, pw.TextStyle textStyle) =>
-      pw.Text(style.text(value), style: textStyle, textAlign: style.bodyAlign);
+  pw.Widget _text(String value, pw.TextStyle textStyle) => pw.Text(
+    style.text(value),
+    style: textStyle,
+    textAlign: style.bodyAlign,
+    overflow: pw.TextOverflow.span,
+  );
 
   /// Stretches [child] to the available width.
   ///
@@ -193,6 +241,36 @@ class SectionRenderer {
   /// and it is what lets `textAlign` actually position text in RTL documents.
   pw.Widget _fullWidth(pw.Widget child) =>
       pw.SizedBox(width: double.infinity, child: child);
+
+  pw.Widget _entryHeader(String title, String meta) {
+    if (style.presentation.dateLocationPosition == 'right' && meta.isNotEmpty) {
+      final heading = pw.Expanded(
+        flex: 3,
+        child: _text(title, style.entryStyle()),
+      );
+      final metadata = pw.Expanded(
+        flex: 2,
+        child: pw.Text(
+          style.text(meta),
+          style: style.metaStyle(),
+          textAlign: style.rtl ? pw.TextAlign.left : pw.TextAlign.right,
+        ),
+      );
+      return pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: style.rtl
+            ? [metadata, pw.SizedBox(width: 12), heading]
+            : [heading, pw.SizedBox(width: 12), metadata],
+      );
+    }
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        _text(title, style.entryStyle()),
+        if (meta.isNotEmpty) _text(meta, style.metaStyle()),
+      ],
+    );
+  }
 
   pw.Widget _entryTitle(String value) => _text(value, style.entryStyle());
 
@@ -204,42 +282,56 @@ class SectionRenderer {
     return _text(trimmed, textStyle);
   }
 
-  pw.Widget _bullet(String value) {
-    final marker = pw.SizedBox(
-      width: 10,
-      // Through `style.text` so the bullet is substituted when only the
-      // base-14 fonts are available (U+2022 is not in Latin-1).
-      child: pw.Text(style.text('•'), style: style.style()),
-    );
-    final body = pw.Expanded(child: _text(value, style.style()));
-    return pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      // The marker sits on the reading side — left for LTR, right for RTL — so
-      // it stays beside right-aligned Arabic text instead of being orphaned
-      // against the opposite margin.
-      children: style.rtl ? [body, marker] : [marker, body],
+  // A spanning text widget lets a single description continue on the next page.
+  // A horizontal marker/body Row cannot span and fails for a page-long paragraph.
+  pw.Widget _bullet(String value) => pw.Text(
+    style.text('\u2022 $value'),
+    style: style.style(),
+    textAlign: style.bodyAlign,
+    overflow: pw.TextOverflow.span,
+  );
+
+  pw.Widget _description(DescriptionItem item) {
+    if (item.label.trim().isEmpty) return _bullet(item.text);
+    // Reorder the whole line before splitting it into styled runs so the
+    // heading, colon and marker keep their positions in both directions.
+    final text = style.text('\u2022 ${item.formatted}');
+    final heading = style.text(item.label.trim(), rtlBase: false);
+    final start = style.rtl && containsArabicScript(item.label)
+        ? text.lastIndexOf(heading)
+        : text.indexOf(heading);
+    if (start < 0) return _bullet(item.formatted);
+    final boldStart = start > 0 && text[start - 1] == ':' ? start - 1 : start;
+    final end = start + heading.length;
+    final boldEnd = end < text.length && text[end] == ':' ? end + 1 : end;
+    return pw.RichText(
+      text: pw.TextSpan(
+        style: style.style(),
+        children: [
+          pw.TextSpan(text: text.substring(0, boldStart)),
+          pw.TextSpan(
+            text: text.substring(boldStart, boldEnd),
+            style: style.style(bold: true),
+          ),
+          pw.TextSpan(text: text.substring(boldEnd)),
+        ],
+      ),
+      textAlign: style.bodyAlign,
+      overflow: pw.TextOverflow.span,
     );
   }
 
   /// A vertical stack of entry lines with the configured spacing.
   pw.Widget _block(List<pw.Widget?> children) {
     final kept = children.whereType<pw.Widget>().toList();
-    return pw.Padding(
-      padding: pw.EdgeInsets.only(bottom: style.spacing.itemSpacing),
-      child: pw.Column(
-        // `stretch`, not `start`: each line only honours its `textAlign` when
-        // the text box spans the full width, which is what right-aligns entry
-        // titles and meta lines in a right-to-left document.
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < kept.length; i++) ...[
-            kept[i],
-            if (i < kept.length - 1)
-              pw.SizedBox(height: style.spacing.paragraphSpacing / 2),
-          ],
-        ],
-      ),
-    );
+    return _EntryBlock([
+      for (var i = 0; i < kept.length; i++) ...[
+        kept[i],
+        if (i < kept.length - 1)
+          pw.SizedBox(height: style.spacing.paragraphSpacing / 2),
+      ],
+      pw.SizedBox(height: style.spacing.itemSpacing),
+    ]);
   }
 
   /// Skills as outlined chips, or a plain comma list for ATS output.
@@ -301,20 +393,21 @@ class SectionRenderer {
         pw.SizedBox(height: 4),
       ],
       _entryTitle(p.title ?? ''),
+      _optional(p.dateRange.format(), style.metaStyle()),
       _optional(p.summary, style.style()),
-      _optional(p.description, style.style()),
+      ...p.resolvedDescriptions
+          .where((d) => d.text.trim().isNotEmpty)
+          .map(_description),
       if (p.technologies.isNotEmpty)
         _text(p.technologies.join(', '), style.metaStyle()),
       _linkLine('Demo', p.demoUrl),
       _linkLine('Source', p.sourceUrl),
       _linkLine('Website', p.websiteUrl),
     ];
-    return pw.Column(
-      // `stretch` so each line spans the card width and its `textAlign` can
-      // right-align it in a right-to-left document.
-      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-      children: children.whereType<pw.Widget>().toList(),
-    );
+    return _EntryBlock([
+      ...children.whereType<pw.Widget>(),
+      pw.SizedBox(height: style.spacing.itemSpacing),
+    ]);
   }
 
   pw.Widget? _linkLine(String label, String? url) {
@@ -352,6 +445,20 @@ class SectionRenderer {
       child: pw.Image(image, width: size, height: size, fit: pw.BoxFit.cover),
     );
   }
+}
+
+/// Retains grouped layout inside columns while exposing a spanning page flow.
+/// Text must be a direct MultiPage child to receive bounded page constraints.
+class _EntryBlock extends pw.StatelessWidget {
+  _EntryBlock(this.flowChildren);
+
+  final List<pw.Widget> flowChildren;
+
+  @override
+  pw.Widget build(pw.Context context) => pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+    children: flowChildren,
+  );
 }
 
 /// `true` when [url] may be embedded as a clickable PDF link.
